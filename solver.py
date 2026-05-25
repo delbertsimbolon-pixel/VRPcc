@@ -244,8 +244,14 @@ def solve_cvrptw(data):
             for stop in temporary_stop_results:
                 stop["Vehicle"] = display_vehicle_id
                 stop_results.append(stop)
-
+            distance_km = route_distance / 1000
+            fuel_cost = distance_km * data["fuel_cost_per_km"]
+            driver_cost = data["driver_cost_per_vehicle"]
+            total_cost = fuel_cost + driver_cost
             route_results.append({
+                "Fuel Cost": round(fuel_cost, 2),
+                "Driver Cost": round(driver_cost, 2),
+                "Total Cost": round(total_cost, 2),
                 "Vehicle": display_vehicle_id,
                 "Original Vehicle ID": vehicle_id + 1,
                 "Route": " -> ".join(route_nodes),
