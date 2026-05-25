@@ -156,7 +156,7 @@ if st.button("🚀 Run Route Optimization"):
         "depot": 0,
         "depot_start": 360,
         "time_windows": [(360,510)] + [(390,450)]*7,
-        "service_times": [15,15,10,10,10,10,10,10]
+        "service_times": [15,15,10,10,10,10,10,10],
         "fuel_cost_per_km": fuel_cost_per_km,
         "driver_cost_per_vehicle": driver_cost_per_vehicle
     }
