@@ -213,7 +213,6 @@ if st.session_state.optimization_result:
         "Lateness (min)"
     ]
 ]
-    ["Vehicle","Distance (km)","Delivered Packages","Utilization (%)","Lateness (min)"]
     
     st.dataframe(vehicle_summary_df,use_container_width=True)
 
