@@ -106,6 +106,19 @@ def compute_vehicle_metrics(result, data):
 st.sidebar.header("⚙️ Operational Scenarios")
 scenario = st.sidebar.selectbox("Select Scenario", ["Normal examination day","Peak examination day","Delayed departure"])
 st.sidebar.header("🚚 Fleet Parameters")
+fuel_cost_per_km = st.sidebar.number_input(
+    "Fuel Cost per KM",
+    1000,
+    50000,
+    5000
+)
+
+driver_cost_per_vehicle = st.sidebar.number_input(
+    "Driver Cost per Vehicle",
+    10000,
+    500000,
+    50000
+)
 num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 10, 3)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Packages)", 50, 500, 100)
 st.sidebar.header("📦 Base Demand Input")
@@ -144,6 +157,8 @@ if st.button("🚀 Run Route Optimization"):
         "depot_start": 360,
         "time_windows": [(360,510)] + [(390,450)]*7,
         "service_times": [15,15,10,10,10,10,10,10]
+        "fuel_cost_per_km": fuel_cost_per_km,
+        "driver_cost_per_vehicle": driver_cost_per_vehicle
     }
 
     data = get_osrm_matrices(data)
@@ -170,12 +185,16 @@ if st.session_state.optimization_result:
     baseline_distance = 50
     optimized_distance = sum(r.get("Distance (km)",0) for r in routes)
     improvement = ((baseline_distance - optimized_distance)/baseline_distance)*100
-    col1,col2,col3,col4 = st.columns(4)
+    col1,col2,col3,col4,col5 = st.columns(5)
+    total_operational_cost = sum(
+    r.get("Total Cost",0) for r in routes
+)
     col1.metric("Baseline Distance", f"{baseline_distance:.2f} km")
     col2.metric("Optimized Distance", f"{optimized_distance:.2f} km", f"{improvement:.2f}% improvement")
     col3.metric("Total Delivered", f"{sum(r.get('Delivered Packages',0) for r in routes)} packages")
     col4.metric("Fleet Utilization", f"{sum(r.get('Delivered Packages',0) for r in routes)/sum(data['vehicle_capacities'])*100:.1f}%")
-
+    col5.metric("Total Operational Cost", f"Rp {total_operational_cost:,.0f}"
+)
     # --- Combined map ---
     st.subheader("🗺️ Combined Route Map")
     st_folium(create_enhanced_route_map(routes), width=1000, height=500)
@@ -183,8 +202,19 @@ if st.session_state.optimization_result:
     # --- Vehicle summary table ---
     st.subheader("🚛 Vehicle Summary Table")
     vehicle_summary_df = pd.DataFrame(routes)[
-        ["Vehicle","Distance (km)","Delivered Packages","Utilization (%)","Lateness (min)"]
+    [
+        "Vehicle",
+        "Distance (km)",
+        "Delivered Packages",
+        "Utilization (%)",
+        "Fuel Cost",
+        "Driver Cost",
+        "Total Cost",
+        "Lateness (min)"
     ]
+]
+    ["Vehicle","Distance (km)","Delivered Packages","Utilization (%)","Lateness (min)"]
+    
     st.dataframe(vehicle_summary_df,use_container_width=True)
 
     # --- Per-vehicle sections ---
