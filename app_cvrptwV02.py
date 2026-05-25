@@ -74,7 +74,7 @@ def create_enhanced_route_map(routes):
                 location=[stop["Latitude"], stop["Longitude"]],
                 tooltip=f"Vehicle {route['Vehicle']} - Stop {idx+1}",
                 popup=(
-                    f"<b>{stop['Campus']}</b><br>"
+                    f"<b>{stop['Location']}</b><br>"
                     f"Arrival: {stop.get('Time','N/A')}<br>"
                     f"Demand: {stop.get('Demand',0)}<br>"
                     f"Vehicle Utilization: {route.get('Utilization (%)',0)}%<br>"
@@ -86,7 +86,6 @@ def create_enhanced_route_map(routes):
     return combined_map
 
 def compute_vehicle_metrics(result, data):
-    # Maps location name to position array to get distance accurately
     name_to_index = {name: idx for idx, name in enumerate(data["address_list"])}
     
     for route in result["route_results"]:
@@ -97,8 +96,8 @@ def compute_vehicle_metrics(result, data):
         
         route_distance_m = 0
         for i in range(len(schedule) - 1):
-            from_idx = name_to_index[schedule[i]["Campus"]]
-            to_idx = name_to_index[schedule[i+1]["Campus"]]
+            from_idx = name_to_index[schedule[i]["Location"]]
+            to_idx = name_to_index[schedule[i+1]["Location"]]
             route_distance_m += data["distance_matrix"][from_idx][to_idx]
         route["Distance (km)"] = round(route_distance_m / 1000, 2)
         
@@ -123,7 +122,6 @@ driver_cost_per_vehicle = st.sidebar.number_input("Driver Cost per Vehicle", 100
 num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Packages)", 50, 10000, 2500)
 
-# --- Dynamic Multiplier Base Demands from Image ---
 st.sidebar.header("📦 Base Demand Controls")
 demand_tangerang = st.sidebar.number_input("Tangerang", 0, 5000, 2000)
 demand_pejaten = st.sidebar.number_input("Pejaten", 0, 5000, 220)
@@ -150,7 +148,6 @@ if st.button("🚀 Run Route Optimization"):
     if scenario == "Peak examination day":
         multiplier = 1.25
 
-    # DATA DICTIONARY FULLY CONVERTED TO MATCH USER SCREENSHOT
     data = {
         "address_list": [
             "Depot", "Tangerang", "Pejaten", "Central Park", "Cikarang", 
@@ -158,23 +155,23 @@ if st.button("🚀 Run Route Optimization"):
             "Alam Sutera", "Depok", "Sudirman", "Plaza Indonesia", "Bintaro", "Bogor", "Ciomas"
         ],
         "raw_coords": [
-            (-6.60315, 106.76218),   # 0 Depot
-            (-6.3353364, 106.68034), # 1 Tangerang
-            (-6.286292, 106.81204),  # 2 Pejaten
-            (-6.171083, 106.787784), # 3 Central Park
-            (-6.333997, 107.13689),  # 4 Cikarang
-            (-6.213054, 106.82072),  # 5 Karawaci
-            (-6.484245, 106.84319),  # 6 Cibinong
-            (-6.375656, 106.90173),  # 7 Cibubur
-            (-6.145488, 106.89176),  # 8 Pondok Indah Mall 2
-            (-6.176046, 106.721175), # 9 Casablanca
-            (-6.237069, 106.65915),  # 10 Alam Sutera
-            (-6.380091, 106.84468),  # 11 Depok
-            (-6.224799, 106.80397),  # 12 Sudirman
-            (-6.194143, 106.82254),  # 13 Plaza Indonesia
-            (-6.285583, 106.72799),  # 14 Bintaro
-            (-6.616831, 106.82188),  # 15 Bogor
-            (-6.6013858, 106.75367)  # 16 Ciomas
+            (-6.60315, 106.76218),   
+            (-6.3353364, 106.68034), 
+            (-6.286292, 106.81204),  
+            (-6.171083, 106.787784), 
+            (-6.333997, 107.13689),  
+            (-6.213054, 106.82072),  
+            (-6.484245, 106.84319),  
+            (-6.375656, 106.90173),  
+            (-6.145488, 106.89176),  
+            (-6.176046, 106.721175), 
+            (-6.237069, 106.65915),  
+            (-6.380091, 106.84468),  
+            (-6.224799, 106.80397),  
+            (-6.194143, 106.82254),  
+            (-6.285583, 106.72799),  
+            (-6.616831, 106.82188),  
+            (-6.6013858, 106.75367)  
         ],
         "demands": [
             0,
@@ -198,9 +195,9 @@ if st.button("🚀 Run Route Optimization"):
         "vehicle_capacities": [vehicle_capacity] * num_vehicles,
         "num_vehicles": num_vehicles,
         "depot": 0,
-        "depot_start": 0,              # 00.00 in minutes
-        "time_windows": [(0, 1439)] * 17, # 00.00 to 23.59 window for all nodes
-        "service_times": [0, 6, 6, 6, 3, 6, 6, 3, 5, 5, 6, 6, 4, 6, 6, 3, 3], # Converted hours to mins (0.10h = 6m, 0.05h = 3m etc.)
+        "depot_start": 0,              
+        "time_windows": [(0, 1439)] * 17, 
+        "service_times": [0, 6, 6, 6, 3, 6, 6, 3, 5, 5, 6, 6, 4, 6, 6, 3, 3], 
         "fuel_cost_per_km": fuel_cost_per_km,
         "driver_cost_per_vehicle": driver_cost_per_vehicle
     }
@@ -275,7 +272,8 @@ if st.session_state.optimization_result:
         with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
             st_folium(create_enhanced_route_map([route]), width=1000, height=450)
 
-        stop_df = pd.DataFrame(route["Schedule"])[["Campus", "Time", "Demand"]]
+        # UPDATED: Renamed column to Location and added Latitude + Longitude columns
+        stop_df = pd.DataFrame(route["Schedule"])[["Location", "Latitude", "Longitude", "Time", "Demand"]]
         stop_df["Lateness (min)"] = [max(0, s.get("Arrival_Minutes", 0) - s.get("Deadline_Minutes", 1439)) for s in route["Schedule"]]
         
         st.markdown(f"#### Stop-Level Delivery Table (Vehicle {route['Vehicle']})")
