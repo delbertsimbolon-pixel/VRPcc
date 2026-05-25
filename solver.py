@@ -2,28 +2,15 @@ from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
 def solve_cvrptw(data):
-    """
-    Solve CVRPTW for examination document distribution.
-
-    Important:
-    - Time inside solver is converted into relative minutes from depot_start.
-    - Example:
-        depot_start = 0    # 00:00
-        solver arrival = 360
-        displayed time = 0 + 360 = 360 = 06:00
-    """
-
     depot = data["depot"]
     depot_start = data.get("depot_start", data["time_windows"][depot][0])
 
-    # Convert absolute time windows into relative time windows
     relative_time_windows = []
     for start, end in data["time_windows"]:
         relative_start = max(0, start - depot_start)
         relative_end = max(0, end - depot_start)
         relative_time_windows.append((relative_start, relative_end))
 
-    # Make sure depot starts at 0
     depot_end_relative = max(0, data["time_windows"][depot][1] - depot_start)
     relative_time_windows[depot] = (0, depot_end_relative)
 
@@ -35,9 +22,6 @@ def solve_cvrptw(data):
 
     routing = pywrapcp.RoutingModel(manager)
 
-    # -------------------------------
-    # Distance callback
-    # -------------------------------
     def distance_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
@@ -46,9 +30,6 @@ def solve_cvrptw(data):
     distance_callback_index = routing.RegisterTransitCallback(distance_callback)
     routing.SetArcCostEvaluatorOfAllVehicles(distance_callback_index)
 
-    # -------------------------------
-    # Demand callback
-    # -------------------------------
     def demand_callback(from_index):
         from_node = manager.IndexToNode(from_index)
         return int(data["demands"][from_node])
@@ -63,81 +44,45 @@ def solve_cvrptw(data):
         "Capacity"
     )
 
-    # -------------------------------
-    # Time callback
-    # -------------------------------
     def time_callback(from_index, to_index):
         from_node = manager.IndexToNode(from_index)
         to_node = manager.IndexToNode(to_index)
-
         travel_time = int(data["time_matrix"][from_node][to_node])
         service_time = int(data["service_times"][from_node])
-
         return travel_time + service_time
 
     time_callback_index = routing.RegisterTransitCallback(time_callback)
-
-    # Expand the max time horizon ceiling safely to allow full 24-hour schedules
     max_time_horizon = max(end for _, end in relative_time_windows)
 
     routing.AddDimension(
         time_callback_index,
-        120,                # Increased waiting/slack time to prevent lockups over long distances
-        max_time_horizon,   # Route time horizon in relative minutes
+        120,                
+        max_time_horizon,   
         False,
         "Time"
     )
 
     time_dimension = routing.GetDimensionOrDie("Time")
 
-    # -------------------------------
-    # Apply time windows
-    # -------------------------------
     for location_idx, time_window in enumerate(relative_time_windows):
         index = manager.NodeToIndex(location_idx)
         time_dimension.CumulVar(index).SetRange(time_window[0], time_window[1])
 
-    # -------------------------------
-    # Depot time window
-    # -------------------------------
     depot_time_window = relative_time_windows[depot]
 
     for vehicle_id in range(data["num_vehicles"]):
         start_index = routing.Start(vehicle_id)
         end_index = routing.End(vehicle_id)
 
-        time_dimension.CumulVar(start_index).SetRange(
-            depot_time_window[0],
-            depot_time_window[1]
-        )
+        time_dimension.CumulVar(start_index).SetRange(depot_time_window[0], depot_time_window[1])
+        time_dimension.CumulVar(end_index).SetRange(depot_time_window[0], depot_time_window[1])
 
-        time_dimension.CumulVar(end_index).SetRange(
-            depot_time_window[0],
-            depot_time_window[1]
-        )
+        routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(start_index))
+        routing.AddVariableMinimizedByFinalizer(time_dimension.CumulVar(end_index))
 
-        routing.AddVariableMinimizedByFinalizer(
-            time_dimension.CumulVar(start_index)
-        )
-
-        routing.AddVariableMinimizedByFinalizer(
-            time_dimension.CumulVar(end_index)
-        )
-
-    # -------------------------------
-    # Search parameters
-    # -------------------------------
     search_parameters = pywrapcp.DefaultRoutingSearchParameters()
-
-    search_parameters.first_solution_strategy = (
-        routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
-    )
-
-    search_parameters.local_search_metaheuristic = (
-        routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
-    )
-
-    # Increased local calculation time slightly to process the 17 locations cleanly
+    search_parameters.first_solution_strategy = routing_enums_pb2.FirstSolutionStrategy.PATH_CHEAPEST_ARC
+    search_parameters.local_search_metaheuristic = routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     search_parameters.time_limit.seconds = 10
 
     solution = routing.SolveWithParameters(search_parameters)
@@ -145,9 +90,6 @@ def solve_cvrptw(data):
     if solution is None:
         return None
 
-    # -------------------------------
-    # Extract solution
-    # -------------------------------
     route_results = []
     stop_results = []
     total_distance = 0
@@ -176,8 +118,9 @@ def solve_cvrptw(data):
             absolute_arrival = arrival_time + depot_start
             absolute_deadline = data["time_windows"][node_index][1]
 
+            # UPDATED: Key changed from "Campus" to "Location"
             route_schedule.append({
-                "Campus": data["address_list"][node_index],
+                "Location": data["address_list"][node_index],
                 "Time": f"{absolute_arrival // 60:02d}:{absolute_arrival % 60:02d}",
                 "Arrival_Minutes": arrival_time,
                 "Deadline_Minutes": absolute_deadline,
@@ -189,12 +132,12 @@ def solve_cvrptw(data):
 
             if node_index != depot:
                 latest_actual_arrival = max(latest_actual_arrival, arrival_time)
-
                 latest_allowed_relative = relative_time_windows[node_index][1]
                 lateness = max(0, arrival_time - latest_allowed_relative)
 
+                # UPDATED: Key changed from "Campus" to "Location"
                 temporary_stop_results.append({
-                    "Campus": data["address_list"][node_index],
+                    "Location": data["address_list"][node_index],
                     "Arrival Time": f"{absolute_arrival // 60:02d}:{absolute_arrival % 60:02d}",
                     "Deadline": f"{absolute_deadline // 60:02d}:{absolute_deadline % 60:02d}",
                     "Demand": int(data["demands"][node_index]),
@@ -205,15 +148,8 @@ def solve_cvrptw(data):
             previous_index = index
             index = solution.Value(routing.NextVar(index))
 
-            route_distance += routing.GetArcCostForVehicle(
-                previous_index,
-                index,
-                vehicle_id
-            )
+            route_distance += routing.GetArcCostForVehicle(previous_index, index, vehicle_id)
 
-        # -------------------------------
-        # Return to depot
-        # -------------------------------
         end_node = manager.IndexToNode(index)
         end_time = solution.Min(time_dimension.CumulVar(index))
         absolute_end_time = end_time + depot_start
@@ -221,8 +157,9 @@ def solve_cvrptw(data):
         route_nodes.append(data["address_list"][end_node])
         route_node_indices.append(end_node)
 
+        # UPDATED: Key changed from "Campus" to "Location"
         route_schedule.append({
-            "Campus": data["address_list"][end_node],
+            "Location": data["address_list"][end_node],
             "Time": f"{absolute_end_time // 60:02d}:{absolute_end_time % 60:02d}",
             "Arrival_Minutes": end_time,
             "Deadline_Minutes": data["time_windows"][end_node][1],
@@ -255,17 +192,12 @@ def solve_cvrptw(data):
                 "Route": " -> ".join(route_nodes),
                 "Distance (km)": round(route_distance / 1000, 2),
                 "Delivered Packages": route_load,
-                "Utilization (%)": round(
-                    route_load / data["vehicle_capacities"][vehicle_id] * 100,
-                    2
-                ),
+                "Utilization (%)": round(route_load / data["vehicle_capacities"][vehicle_id] * 100, 2),
                 "Exposure Time (mins)": end_time,
                 "Return Time": f"{absolute_end_time // 60:02d}:{absolute_end_time % 60:02d}",
                 "Schedule": route_schedule,
                 "Node Indices": route_node_indices,
-                "Coordinates": [
-                    data["raw_coords"][i] for i in route_node_indices
-                ]
+                "Coordinates": [data["raw_coords"][i] for i in route_node_indices]
             })
 
     return {
