@@ -249,9 +249,9 @@ def solve_cvrptw(data):
             driver_cost = data["driver_cost_per_vehicle"]
             total_cost = fuel_cost + driver_cost
             route_results.append({
-                "Fuel Cost": round(fuel_cost, 2),
-                "Driver Cost": round(driver_cost, 2),
-                "Total Cost": round(total_cost, 2),
+            "Fuel Cost": round(fuel_cost, 2),
+            "Driver Cost": round(driver_cost, 2),
+            "Total Cost": round(total_cost, 2),
                 "Vehicle": display_vehicle_id,
                 "Original Vehicle ID": vehicle_id + 1,
                 "Route": " -> ".join(route_nodes),
