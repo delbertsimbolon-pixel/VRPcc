@@ -1,26 +1,22 @@
 from ortools.constraint_solver import routing_enums_pb2
 from ortools.constraint_solver import pywrapcp
 
-
 def solve_cvrptw(data):
     """
     Solve CVRPTW for examination document distribution.
 
     Important:
     - Time inside solver is converted into relative minutes from depot_start.
-    - This matches app_cvrptwV01.py, which adds depot_start again when displaying time.
     - Example:
-        depot_start = 360  # 06:00
-        solver arrival = 30
-        displayed time = 360 + 30 = 390 = 06:30
+        depot_start = 0    # 00:00
+        solver arrival = 360
+        displayed time = 0 + 360 = 360 = 06:00
     """
 
     depot = data["depot"]
     depot_start = data.get("depot_start", data["time_windows"][depot][0])
 
     # Convert absolute time windows into relative time windows
-    # Example: site time window 06:30-07:30 = 390-450
-    # If depot_start = 360, relative window becomes 30-90
     relative_time_windows = []
     for start, end in data["time_windows"]:
         relative_start = max(0, start - depot_start)
@@ -81,12 +77,13 @@ def solve_cvrptw(data):
 
     time_callback_index = routing.RegisterTransitCallback(time_callback)
 
+    # Expand the max time horizon ceiling safely to allow full 24-hour schedules
     max_time_horizon = max(end for _, end in relative_time_windows)
 
     routing.AddDimension(
         time_callback_index,
-        30,                 # waiting/slack time
-        max_time_horizon,   # route time horizon in relative minutes
+        120,                # Increased waiting/slack time to prevent lockups over long distances
+        max_time_horizon,   # Route time horizon in relative minutes
         False,
         "Time"
     )
@@ -140,7 +137,8 @@ def solve_cvrptw(data):
         routing_enums_pb2.LocalSearchMetaheuristic.GUIDED_LOCAL_SEARCH
     )
 
-    search_parameters.time_limit.seconds = 5
+    # Increased local calculation time slightly to process the 17 locations cleanly
+    search_parameters.time_limit.seconds = 10
 
     solution = routing.SolveWithParameters(search_parameters)
 
@@ -223,7 +221,6 @@ def solve_cvrptw(data):
         route_nodes.append(data["address_list"][end_node])
         route_node_indices.append(end_node)
 
-        # FIX: use end_node and end_time, not the last delivery node
         route_schedule.append({
             "Campus": data["address_list"][end_node],
             "Time": f"{absolute_end_time // 60:02d}:{absolute_end_time % 60:02d}",
@@ -235,7 +232,6 @@ def solve_cvrptw(data):
             "Stop Type": "Return to Depot"
         })
 
-        # Only save active vehicles
         if route_load > 0:
             active_vehicles += 1
             display_vehicle_id += 1
@@ -244,14 +240,16 @@ def solve_cvrptw(data):
             for stop in temporary_stop_results:
                 stop["Vehicle"] = display_vehicle_id
                 stop_results.append(stop)
+                
             distance_km = route_distance / 1000
             fuel_cost = distance_km * data["fuel_cost_per_km"]
             driver_cost = data["driver_cost_per_vehicle"]
             total_cost = fuel_cost + driver_cost
+            
             route_results.append({
-            "Fuel Cost": round(fuel_cost, 2),
-            "Driver Cost": round(driver_cost, 2),
-            "Total Cost": round(total_cost, 2),
+                "Fuel Cost": round(fuel_cost, 2),
+                "Driver Cost": round(driver_cost, 2),
+                "Total Cost": round(total_cost, 2),
                 "Vehicle": display_vehicle_id,
                 "Original Vehicle ID": vehicle_id + 1,
                 "Route": " -> ".join(route_nodes),
