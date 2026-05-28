@@ -244,4 +244,55 @@ if st.session_state.optimization_result:
     col2.metric("Optimized Distance", f"{optimized_distance:.2f} km", f"{improvement:.2f}% improvement")
     col3.metric("Total Dispatched", f"{total_packages} items")
     col4.metric("Fleet Utilization", f"{(total_packages / total_capacity * 100) if total_capacity > 0 else 0:.1f}%")
-    col5.metric("Total Operational Cost", f"Rp {total_operational_cost}
+    
+    # FIXED LINE: Added the missing string closures and layout brackets
+    col5.metric("Total Operational Cost", f"Rp {total_operational_cost:,.0f}")
+    
+    # --- Combined map ---
+    st.subheader("🗺️ Combined Route Map")
+    st_folium(create_enhanced_route_map(routes), width=1000, height=500)
+
+    # --- Vehicle summary table ---
+    st.subheader("🚛 Vehicle Summary Table")
+    
+    for r in routes:
+        for col_name in ["Fuel Cost", "Driver Cost", "Total Cost"]:
+            if col_name not in r:
+                r[col_name] = 0
+                
+    vehicle_summary_df = pd.DataFrame(routes)[[
+        "Vehicle",
+        "Distance (km)",
+        "Delivered Packages",
+        "Utilization (%)",
+        "Fuel Cost",
+        "Driver Cost",
+        "Total Cost",
+        "Lateness (min)"
+    ]]
+    
+    st.dataframe(vehicle_summary_df, use_container_width=True)
+
+    # --- Per-vehicle sections ---
+    for route in routes:
+        st.markdown(f"### Vehicle {route['Vehicle']}")
+        if route.get("Delivered Packages", 0) == 0 or not route.get("Schedule"):
+            st.info("Vehicle not needed for this configuration.")
+            continue
+
+        with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
+            st_folium(create_enhanced_route_map([route]), width=1000, height=450)
+
+        stop_df = pd.DataFrame(route["Schedule"])[["Location", "Latitude", "Longitude", "Time", "Demand"]]
+        stop_df["Lateness (min)"] = [max(0, s.get("Arrival_Minutes", 0) - s.get("Deadline_Minutes", 1439)) for s in route["Schedule"]]
+        
+        st.markdown(f"#### Stop-Level Delivery Table (Vehicle {route['Vehicle']})")
+        st.dataframe(stop_df, use_container_width=True)
+
+        csv_bytes = stop_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label=f"📥 Download CSV Vehicle {route['Vehicle']}", 
+            data=csv_bytes,
+            file_name=f"indrajaya_vehicle_{route['Vehicle']}_stops.csv", 
+            mime="text/csv"
+        )
