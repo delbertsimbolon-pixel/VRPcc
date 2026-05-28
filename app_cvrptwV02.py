@@ -64,11 +64,20 @@ def get_full_osrm_route(route):
 
 def create_enhanced_route_map(routes):
     route_colors = ["#FF0000", "#0000FF", "#008000", "#FFA500", "#800080", "#FF00FF", "#00FFFF"]
-    combined_map = folium.Map(location=routes[0]["Coordinates"][0], zoom_start=11)
-    for route in routes:
+    
+    # Filter out empty routes to avoid mapping failures
+    valid_routes = [r for r in routes if r.get("Coordinates") and len(r["Coordinates"]) > 1]
+    if not valid_routes:
+        fallback_map = folium.Map(location=[-6.60315, 106.76218], zoom_start=11)
+        return fallback_map
+
+    combined_map = folium.Map(location=valid_routes[0]["Coordinates"][0], zoom_start=11)
+    for route in valid_routes:
         vehicle_color = route_colors[(route["Vehicle"]-1) % len(route_colors)]
         road_points, _ = get_full_osrm_route(route)
-        AntPath(locations=road_points, color=vehicle_color, weight=6, opacity=0.9, delay=800).add_to(combined_map)
+        if road_points:
+            AntPath(locations=road_points, color=vehicle_color, weight=6, opacity=0.9, delay=800).add_to(combined_map)
+        
         for idx, stop in enumerate(route["Schedule"]):
             folium.Marker(
                 location=[stop["Latitude"], stop["Longitude"]],
@@ -81,7 +90,7 @@ def create_enhanced_route_map(routes):
                     f"Distance: {route.get('Distance (km)',0)} km<br>"
                     f"Lateness: {route.get('Lateness (min)',0)} min"
                 ),
-                icon=folium.Icon(color="blue", icon="info-sign")
+                icon=folium.Icon(color="blue" if idx > 0 and idx < len(route["Schedule"])-1 else "red", icon="info-sign")
             ).add_to(combined_map)
     return combined_map
 
@@ -155,23 +164,23 @@ if st.button("🚀 Run Route Optimization"):
             "Alam Sutera", "Depok", "Sudirman", "Plaza Indonesia", "Bintaro", "Bogor", "Ciomas"
         ],
         "raw_coords": [
-            (-6.60315, 106.76218),   
-            (-6.3353364, 106.68034), 
-            (-6.286292, 106.81204),  
-            (-6.171083, 106.787784), 
-            (-6.333997, 107.13689),  
-            (-6.213054, 106.82072),  
-            (-6.484245, 106.84319),  
-            (-6.375656, 106.90173),  
-            (-6.145488, 106.89176),  
-            (-6.176046, 106.721175), 
-            (-6.237069, 106.65915),  
-            (-6.380091, 106.84468),  
-            (-6.224799, 106.80397),  
-            (-6.194143, 106.82254),  
-            (-6.285583, 106.72799),  
-            (-6.616831, 106.82188),  
-            (-6.6013858, 106.75367)  
+            (-6.60315, 106.76218),   # Depot
+            (-6.3353364, 106.68034), # Tangerang
+            (-6.286292, 106.81204),  # Pejaten
+            (-6.171083, 106.787784), # Central Park
+            (-6.333997, 107.13689),  # Cikarang
+            (-6.225614, 106.628867), # FIX: Karawaci (Changed from Kuningan coordinates)
+            (-6.484245, 106.84319),  # Cibinong
+            (-6.375656, 106.90173),  # Cibubur
+            (-6.268711, 106.783856), # FIX: Pondok Indah Mall 2 (Changed from Ancol coordinates)
+            (-6.176046, 106.721175), # Casablanca
+            (-6.237069, 106.65915),  # Alam Sutera
+            (-6.380091, 106.84468),  # Depok
+            (-6.224799, 106.80397),  # Sudirman
+            (-6.194143, 106.82254),  # Plaza Indonesia
+            (-6.285583, 106.72799),  # Bintaro
+            (-6.616831, 106.82188),  # Bogor
+            (-6.6013858, 106.75367)  # Ciomas
         ],
         "demands": [
             0,
@@ -265,14 +274,13 @@ if st.session_state.optimization_result:
     # --- Per-vehicle sections ---
     for route in routes:
         st.markdown(f"### Vehicle {route['Vehicle']}")
-        if route.get("Delivered Packages", 0) == 0:
+        if route.get("Delivered Packages", 0) == 0 or not route.get("Schedule"):
             st.info("Vehicle not needed for this configuration.")
             continue
 
         with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
             st_folium(create_enhanced_route_map([route]), width=1000, height=450)
 
-        # UPDATED: Renamed column to Location and added Latitude + Longitude columns
         stop_df = pd.DataFrame(route["Schedule"])[["Location", "Latitude", "Longitude", "Time", "Demand"]]
         stop_df["Lateness (min)"] = [max(0, s.get("Arrival_Minutes", 0) - s.get("Deadline_Minutes", 1439)) for s in route["Schedule"]]
         
