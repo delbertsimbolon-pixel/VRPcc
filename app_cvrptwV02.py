@@ -244,4 +244,4 @@ if st.session_state.optimization_result:
     col2.metric("Optimized Distance", f"{optimized_distance:.2f} km", f"{improvement:.2f}% improvement")
     col3.metric("Total Dispatched", f"{total_packages} items")
     col4.metric("Fleet Utilization", f"{(total_packages / total_capacity * 100) if total_capacity > 0 else 0:.1f}%")
-    col5.metric("Total Operational Cost", f"Rp {total_operational_cost
+    col5.metric("Total Operational Cost", f"Rp {total_operational_cost}
