@@ -130,7 +130,7 @@ def compute_vehicle_metrics(result, data):
     return result
 
 # -------------------------------
-# Sidebar inputs (Fleet parameters only)
+# Sidebar inputs (Global parameters)
 # -------------------------------
 st.sidebar.header("⚙️ Operational Scenarios")
 scenario = st.sidebar.selectbox("Select Scenario", ["Normal distribution day", "Peak distribution day", "Delayed departure"])
@@ -142,187 +142,52 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2500)
 
 # -------------------------------
-# Interactive Configuration Table (Demands & Time Windows)
+# Dynamic Sidebar Location Controls (Demand & Time Windows)
 # -------------------------------
-st.subheader("📋 Location Demand & Time Window Parameters")
-st.markdown("Edit the cell numbers below directly to customize parameters dynamically before executing optimization.")
+st.sidebar.header("📦 Location Custom Configurations")
 
-# Setup the default dataframe structure
-default_data = {
-    "Location": ["Depot", "Tangerang", "Pejaten", "Central Park", "Cikarang", "Karawaci", "Cibinong", "Cibubur", "Pondok Indah Mall 2", "Casablanca", "Alam Sutera", "Depok", "Sudirman", "Plaza Indonesia", "Bintaro", "Bogor", "Ciomas"],
-    "Demand": [0, 2000, 220, 195, 100, 80, 55, 80, 80, 95, 130, 100, 110, 200, 170, 1000, 400],
-    "Opening Hour (0-23)": [0, 8, 9, 10, 8, 10, 8, 9, 10, 10, 10, 8, 8, 10, 9, 8, 8],
-    "Closing Hour (0-23)": [23, 17, 21, 22, 17, 22, 17, 19, 22, 22, 22, 20, 17, 22, 20, 17, 17]
-}
-base_df = pd.DataFrame(default_data)
+locations_metadata = [
+    {"name": "Depot", "def_demand": 0, "def_open": 0, "def_close": 23},
+    {"name": "Tangerang", "def_demand": 2000, "def_open": 8, "def_close": 17},
+    {"name": "Pejaten", "def_demand": 220, "def_open": 9, "def_close": 21},
+    {"name": "Central Park", "def_demand": 195, "def_open": 10, "def_close": 22},
+    {"name": "Cikarang", "def_demand": 100, "def_open": 8, "def_close": 17},
+    {"name": "Karawaci", "def_demand": 80, "def_open": 10, "def_close": 22},
+    {"name": "Cibinong", "def_demand": 55, "def_open": 8, "def_close": 17},
+    {"name": "Cibubur", "def_demand": 80, "def_open": 9, "def_close": 19},
+    {"name": "Pondok Indah Mall 2", "def_demand": 80, "def_open": 10, "def_close": 22},
+    {"name": "Casablanca", "def_demand": 95, "def_open": 10, "def_close": 22},
+    {"name": "Alam Sutera", "def_demand": 130, "def_open": 10, "def_close": 22},
+    {"name": "Depok", "def_demand": 100, "def_open": 8, "def_close": 20},
+    {"name": "Sudirman", "def_demand": 110, "def_open": 8, "def_close": 17},
+    {"name": "Plaza Indonesia", "def_demand": 200, "def_open": 10, "def_close": 22},
+    {"name": "Bintaro", "def_demand": 170, "def_open": 9, "def_close": 20},
+    {"name": "Bogor", "def_demand": 1000, "def_open": 8, "def_close": 17},
+    {"name": "Ciomas", "def_demand": 400, "def_open": 8, "def_close": 17}
+]
 
-# Render an editable spreadsheet interface using Streamlit Data Editor
-edited_df = st.data_editor(base_df, use_container_width=True, hide_index=True)
+user_demands = []
+user_time_windows = []
 
-# -------------------------------
-# Run solver
-# -------------------------------
-if st.button("🚀 Run Route Optimization"):
-    multiplier = 1.0
-    if scenario == "Peak distribution day":
-        multiplier = 1.25
-
-    # Process edited inputs dynamically from the user-modified layout matrix
-    user_time_windows = []
-    final_demands = []
-    
-    for _, row in edited_df.iterrows():
-        # Prevent Depot load changes manually
-        loc_demand = 0 if row["Location"] == "Depot" else int(row["Demand"])
-        final_demands.append(math.ceil(loc_demand * multiplier))
-        
-        # Calculate minutes fields based on custom spreadsheet modifications
-        start_min = int(row["Opening Hour (0-23)"]) * 60
-        end_min = int(row["Closing Hour (0-23)"]) * 60 + 59  # include the whole hour loop
-        
-        # Clip edge limits to legal bounds safety parameters
-        start_min = max(0, min(1439, start_min))
-        end_min = max(0, min(1439, end_min))
-        
-        user_time_windows.append((start_min, end_min))
-
-    data = {
-        "address_list": edited_df["Location"].tolist(),
-        "raw_coords": [
-            (-6.60315, 106.76218),   # Depot
-            (-6.3353364, 106.68034), # Tangerang
-            (-6.286292, 106.81204),  # Pejaten
-            (-6.171083, 106.787784), # Central Park
-            (-6.333997, 107.13689),  # Cikarang
-            (-6.225614, 106.628867), # Karawaci
-            (-6.484245, 106.84319),  # Cibinong
-            (-6.375656, 106.90173),  # Cibubur
-            (-6.268711, 106.783856), # Pondok Indah Mall 2
-            (-6.176046, 106.721175), # Casablanca
-            (-6.237069, 106.65915),  # Alam Sutera
-            (-6.380091, 106.84468),  # Depok
-            (-6.224799, 106.80397),  # Sudirman
-            (-6.194143, 106.82254),  # Plaza Indonesia
-            (-6.285583, 106.72799),  # Bintaro
-            (-6.616831, 106.82188),  # Bogor
-            (-6.6013858, 106.75367)  # Ciomas
-        ],
-        "demands": final_demands,
-        "vehicle_capacities": [vehicle_capacity] * num_vehicles,
-        "num_vehicles": num_vehicles,
-        "depot": 0,
-        "depot_start": 0,              
-        "time_windows": user_time_windows, 
-        "service_times": [0, 6, 6, 6, 3, 6, 6, 3, 5, 5, 6, 6, 4, 6, 6, 3, 3], 
-        "fuel_cost_per_km": fuel_cost_per_km,
-        "driver_cost_per_vehicle": driver_cost_per_vehicle
-    }
-
-    with st.spinner("Fetching matrix configurations and solving..."):
-        data = get_osrm_matrices(data)
-        result = solve_cvrptw(data)
-        
-    if result is None:
-        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity, reducing demands, or opening hours constraints.")
-        st.stop()
-
-    for route in result["route_results"]:
-        for stop in route["Schedule"]:
-            loc_name = stop["Location"]
-            idx = data["address_list"].index(loc_name)
-            stop["Opening_Minutes"] = data["time_windows"][idx][0]
-
-    st.session_state.optimization_result = compute_vehicle_metrics(result, data)
-    st.session_state.optimization_data = data
-
-# -------------------------------
-# Display results
-# -------------------------------
-if st.session_state.optimization_result:
-    result = st.session_state.optimization_result
-    data = st.session_state.optimization_data
-    routes = result["route_results"]
-
-    # --- DYNAMIC BASELINE CALCULATION ---
-    total_unoptimized_meters = 0
-    matrix = data["distance_matrix"]
-    for i in range(1, len(data["address_list"])):
-        total_unoptimized_meters += matrix[0][i] + matrix[i][0]
-    
-    baseline_distance = round(total_unoptimized_meters / 1000, 2)
-    optimized_distance = sum(r.get("Distance (km)", 0) for r in routes)
-    improvement = ((baseline_distance - optimized_distance) / baseline_distance) * 100 if baseline_distance > 0 else 0
-    
-    col1, col2, col3, col4, col5 = st.columns(5)
-    total_operational_cost = sum(r.get("Total Cost", 0) for r in routes)
-    total_packages = sum(r.get('Delivered Packages', 0) for r in routes)
-    total_capacity = sum(data['vehicle_capacities'])
-    
-    col1.metric("Baseline Distance", f"{baseline_distance:.2f} km")
-    col2.metric("Optimized Distance", f"{optimized_distance:.2f} km", f"{improvement:.2f}% improvement")
-    col3.metric("Total Dispatched", f"{total_packages} items")
-    col4.metric("Fleet Utilization", f"{(total_packages / total_capacity * 100) if total_capacity > 0 else 0:.1f}%")
-    col5.metric("Total Operational Cost", f"Rp {total_operational_cost:,.0f}")
-    
-    # --- Combined map ---
-    st.subheader("🗺️ Combined Route Map")
-    st_folium(create_enhanced_route_map(routes), width=1000, height=500)
-
-    # --- Vehicle summary table ---
-    st.subheader("🚛 Vehicle Summary Table")
-    
-    for r in routes:
-        for col_name in ["Fuel Cost", "Driver Cost", "Total Cost"]:
-            if col_name not in r:
-                r[col_name] = 0
-                
-    vehicle_summary_df = pd.DataFrame(routes)[[
-        "Vehicle",
-        "Distance (km)",
-        "Delivered Packages",
-        "Utilization (%)",
-        "Fuel Cost",
-        "Driver Cost",
-        "Total Cost",
-        "Lateness (min)"
-    ]]
-    
-    st.dataframe(vehicle_summary_df, use_container_width=True)
-
-    # --- Per-vehicle sections ---
-    for route in routes:
-        st.markdown(f"### Vehicle {route['Vehicle']}")
-        if route.get("Delivered Packages", 0) == 0 or not route.get("Schedule"):
-            st.info("Vehicle not needed for this configuration.")
-            continue
-
-        with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
-            st_folium(create_enhanced_route_map([route]), width=1000, height=450)
-
-        schedule_records = []
-        for s in route["Schedule"]:
-            open_min = s.get("Opening_Minutes", 0)
-            close_min = s.get("Deadline_Minutes", 1439)
+# Construct inputs inside sidebar components matching the design preference
+for loc in locations_metadata:
+    with st.sidebar.expander(f"📍 {loc['name']}", expanded=False):
+        if loc["name"] != "Depot":
+            demand_input = st.number_input(f"Demand", 0, 5000, loc["def_demand"], key=f"d_in_{loc['name']}")
+        else:
+            demand_input = 0
+            st.caption("Depot load defaults to 0.")
             
-            schedule_records.append({
-                "Location": s["Location"],
-                "Operational Window": f"{open_min//60:02d}:{open_min%60:02d} - {close_min//60:02d}:{close_min%60:02d}",
-                "Arrival Time": s["Time"],
-                "Demand": s["Demand"],
-                "Lateness (min)": s.get("Lateness_Minutes", 0),
-                "Latitude": s["Latitude"],
-                "Longitude": s["Longitude"]
-            })
-            
-        stop_df = pd.DataFrame(schedule_records)[["Location", "Operational Window", "Arrival Time", "Demand", "Lateness (min)", "Latitude", "Longitude"]]
+        col_start, col_end = st.columns(2)
+        open_hour = col_start.number_input("Open (0-23)", 0, 23, loc["def_open"], key=f"o_hr_{loc['name']}")
+        close_hour = col_end.number_input("Close (0-23)", 0, 23, loc["def_close"], key=f"c_hr_{loc['name']}")
         
-        st.markdown(f"#### Stop-Level Delivery Table (Vehicle {route['Vehicle']})")
-        st.dataframe(stop_df, use_container_width=True)
-
-        csv_bytes = stop_df.to_csv(index=False).encode("utf-8")
-        st.download_button(
-            label=f"📥 Download CSV Vehicle {route['Vehicle']}", 
-            data=csv_bytes,
-            file_name=f"indrajaya_vehicle_{route['Vehicle']}_stops.csv", 
-            mime="text/csv"
-        )
+        # Enforce chronological validation safety limits
+        if open_hour > close_hour:
+            st.error("Open hour cannot be after close hour.")
+            close_hour = open_hour
+            
+        start_minutes = open_hour * 60
+        end_minutes = (close_hour * 60) + 59  # Capture the full duration of the final active hour hour loop
+        
+        user_demands.append(demand
