@@ -79,7 +79,6 @@ def create_enhanced_route_map(routes):
             AntPath(locations=road_points, color=vehicle_color, weight=6, opacity=0.9, delay=800).add_to(combined_map)
         
         for idx, stop in enumerate(route["Schedule"]):
-            # Format time window limits cleanly for map popups
             tw_start = stop.get('Opening_Minutes', 0)
             tw_end = stop.get('Deadline_Minutes', 1439)
             tw_text = f"{tw_start//60:02d}:{tw_start%60:02d} - {tw_end//60:02d}:{tw_end%60:02d}"
@@ -117,7 +116,6 @@ def compute_vehicle_metrics(result, data):
         route["Distance (km)"] = round(route_distance_m / 1000, 2)
         
         if schedule:
-            # Calculate total lateness for the route summary
             total_lateness = 0
             for stop in schedule:
                 arrival = stop.get("Arrival_Minutes", 0)
@@ -143,63 +141,68 @@ driver_cost_per_vehicle = st.sidebar.number_input("Driver Cost per Vehicle", 100
 num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2500)
 
-st.sidebar.header("📦 Location Settings (Demand & Time)")
+st.sidebar.header("📦 Base Demand Controls")
+demand_tangerang = st.sidebar.number_input("Tangerang", 0, 5000, 2000)
+demand_pejaten = st.sidebar.number_input("Pejaten", 0, 5000, 220)
+demand_central_park = st.sidebar.number_input("Central Park", 0, 5000, 195)
+demand_cikarang = st.sidebar.number_input("Cikarang", 0, 5000, 100)
+demand_karawaci = st.sidebar.number_input("Karawaci", 0, 5000, 80)
+demand_cibinong = st.sidebar.number_input("Cibinong", 0, 5000, 55)
+demand_cibubur = st.sidebar.number_input("Cibubur", 0, 5000, 80)
+demand_pimm2 = st.sidebar.number_input("Pondok Indah Mall 2", 0, 5000, 80)
+demand_casablanca = st.sidebar.number_input("Casablanca", 0, 5000, 95)
+demand_alam_sutera = st.sidebar.number_input("Alam Sutera", 0, 5000, 130)
+demand_depok = st.sidebar.number_input("Depok", 0, 5000, 100)
+demand_sudirman = st.sidebar.number_input("Sudirman", 0, 5000, 110)
+demand_plaza_indo = st.sidebar.number_input("Plaza Indonesia", 0, 5000, 200)
+demand_bintaro = st.sidebar.number_input("Bintaro", 0, 5000, 170)
+demand_bogor = st.sidebar.number_input("Bogor", 0, 5000, 1000)
+demand_ciomas = st.sidebar.number_input("Ciomas", 0, 5000, 400)
 
+# -------------------------------
+# Fixed Operational Time Windows (All set to 00:00 - 23:59)
+# -------------------------------
 locations_setup = [
-    {"name": "Depot", "default_demand": 0, "default_tw": (0, 1439)},
-    {"name": "Tangerang", "default_demand": 2000, "default_tw": (0, 1439)},
-    {"name": "Pejaten", "default_demand": 220, "default_tw": (0, 1439)},
-    {"name": "Central Park", "default_demand": 195, "default_tw": (0, 1439)},
-    {"name": "Cikarang", "default_demand": 100, "default_tw": (0, 1439)},
-    {"name": "Karawaci", "default_demand": 80, "default_tw": (0, 1439)},
-    {"name": "Cibinong", "default_demand": 55, "default_tw": (0, 1439)},
-    {"name": "Cibubur", "default_demand": 80, "default_tw": (0, 1439)},
-    {"name": "Pondok Indah Mall 2", "default_demand": 80, "default_tw": (0, 1439)},
-    {"name": "Casablanca", "default_demand": 95, "default_tw": (0, 1439)},
-    {"name": "Alam Sutera", "default_demand": 130, "default_tw": (0, 1439)},
-    {"name": "Depok", "default_demand": 100, "default_tw": (0, 1439)},
-    {"name": "Sudirman", "default_demand": 110, "default_tw": (0, 1439)},
-    {"name": "Plaza Indonesia", "default_demand": 200, "default_tw": (0, 1439)},
-    {"name": "Bintaro", "default_demand": 170, "default_tw": (0, 1439)},
-    {"name": "Bogor", "default_demand": 1000, "default_tw": (0, 1439)},
-    {"name": "Ciomas", "default_demand": 400, "default_tw": (0, 1439)}
+    {"name": "Depot", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Tangerang", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Pejaten", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Central Park", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Cikarang", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Karawaci", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Cibinong", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Cibubur", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Pondok Indah Mall 2", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Casablanca", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Alam Sutera", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Depok", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Sudirman", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Plaza Indonesia", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Bintaro", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Bogor", "tw": (0, 1439), "display": "00:00 - 23:59"},
+    {"name": "Ciomas", "tw": (0, 1439), "display": "00:00 - 23:59"}
 ]
 
-user_demands = []
-user_time_windows = []
-
-# Generate inputs dynamically inside expandable components
-for loc in locations_setup:
-    with st.sidebar.expander(f"📍 {loc['name']}", expanded=False):
-        if loc["name"] != "Depot":
-            demand = st.number_input(f"Demand ({loc['name']})", 0, 5000, loc["default_demand"], key=f"dem_{loc['name']}")
-        else:
-            demand = 0
-            st.caption("Depot load always sets to 0.")
-            
-        tw_slider = st.slider(
-            f"Operating Window ({loc['name']})",
-            0, 1439, loc["default_tw"],
-            format="",
-            key=f"tw_{loc['name']}"
-        )
-        
-        start_hour, start_min = tw_slider[0] // 60, tw_slider[0] % 60
-        end_hour, end_min = tw_slider[1] // 60, tw_slider[1] % 60
-        st.caption(f"Active Time: {start_hour:02d}:{start_min:02d} — {end_hour:02d}:{end_min:02d}")
-        
-        user_demands.append(demand)
-        user_time_windows.append(tw_slider)
+# --- MAIN UI DISPLAY FOR TIME WINDOWS ---
+st.subheader("📋 Locked Operational Time Windows Reference")
+info_df = pd.DataFrame(locations_setup)[["name", "display"]].rename(columns={"name": "Location", "display": "Fixed Operating Hours"})
+st.dataframe(info_df, use_container_width=True)
 
 # -------------------------------
 # Run solver
 # -------------------------------
 if st.button("🚀 Run Route Optimization"):
     multiplier = 1.0
-    if scenario == "Peak distribution day":
+    if scenario == "Peak examination day":
         multiplier = 1.25
 
-    final_demands = [math.ceil(d * multiplier) if idx != 0 else 0 for idx, d in enumerate(user_demands)]
+    raw_demands = [
+        0, demand_tangerang, demand_pejaten, demand_central_park, demand_cikarang,
+        demand_karawaci, demand_cibinong, demand_cibubur, demand_pimm2, demand_casablanca,
+        demand_alam_sutera, demand_depok, demand_sudirman, demand_plaza_indo, demand_bintaro,
+        demand_bogor, demand_ciomas
+    ]
+    final_demands = [math.ceil(d * multiplier) if idx != 0 else 0 for idx, d in enumerate(raw_demands)]
+    user_time_windows = [l["tw"] for l in locations_setup]
 
     data = {
         "address_list": [l["name"] for l in locations_setup],
@@ -238,10 +241,9 @@ if st.button("🚀 Run Route Optimization"):
         result = solve_cvrptw(data)
         
     if result is None:
-        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity, reducing demands, or widening time windows.")
+        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity or reducing demands.")
         st.stop()
 
-    # Inject opening time configs into schedule result mappings for display processing
     for route in result["route_results"]:
         for stop in route["Schedule"]:
             loc_name = stop["Location"]
@@ -259,8 +261,15 @@ if st.session_state.optimization_result:
     data = st.session_state.optimization_data
     routes = result["route_results"]
 
-    # --- Top summary box ---
-    baseline_distance = 150.0
+    # --- DYNAMIC BASELINE CALCULATION ---
+    # Sum up the distance from Depot (index 0) to each destination and back to depot
+    total_unoptimized_meters = 0
+    matrix = data["distance_matrix"]
+    for i in range(1, len(data["address_list"])):
+        # Round trip: Depot -> Location i -> Depot
+        total_unoptimized_meters += matrix[0][i] + matrix[i][0]
+    
+    baseline_distance = round(total_unoptimized_meters / 1000, 2)
     optimized_distance = sum(r.get("Distance (km)", 0) for r in routes)
     improvement = ((baseline_distance - optimized_distance) / baseline_distance) * 100 if baseline_distance > 0 else 0
     
@@ -310,7 +319,6 @@ if st.session_state.optimization_result:
         with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
             st_folium(create_enhanced_route_map([route]), width=1000, height=450)
 
-        # Build schedule dataframes containing explicit operational time displays
         schedule_records = []
         for s in route["Schedule"]:
             open_min = s.get("Opening_Minutes", 0)
