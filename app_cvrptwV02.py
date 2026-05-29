@@ -190,4 +190,156 @@ for loc in locations_metadata:
         start_minutes = open_hour * 60
         end_minutes = (close_hour * 60) + 59  # Capture the full duration of the final active hour hour loop
         
-        user_demands.append(demand
+        user_demands.append(demand_input)
+        user_time_windows.append((start_minutes, end_minutes))
+
+# -------------------------------
+# Run solver
+# -------------------------------
+if st.button("🚀 Run Route Optimization"):
+    multiplier = 1.0
+    if scenario == "Peak distribution day":
+        multiplier = 1.25
+
+    final_demands = [math.ceil(d * multiplier) if idx != 0 else 0 for idx, d in enumerate(user_demands)]
+
+    data = {
+        "address_list": [l["name"] for l in locations_metadata],
+        "raw_coords": [
+            (-6.60315, 106.76218),   # Depot
+            (-6.3353364, 106.68034), # Tangerang
+            (-6.286292, 106.81204),  # Pejaten
+            (-6.171083, 106.787784), # Central Park
+            (-6.333997, 107.13689),  # Cikarang
+            (-6.225614, 106.628867), # Karawaci
+            (-6.484245, 106.84319),  # Cibinong
+            (-6.375656, 106.90173),  # Cibubur
+            (-6.268711, 106.783856), # Pondok Indah Mall 2
+            (-6.176046, 106.721175), # Casablanca
+            (-6.237069, 106.65915),  # Alam Sutera
+            (-6.380091, 106.84468),  # Depok
+            (-6.224799, 106.80397),  # Sudirman
+            (-6.194143, 106.82254),  # Plaza Indonesia
+            (-6.285583, 106.72799),  # Bintaro
+            (-6.616831, 106.82188),  # Bogor
+            (-6.6013858, 106.75367)  # Ciomas
+        ],
+        "demands": final_demands,
+        "vehicle_capacities": [vehicle_capacity] * num_vehicles,
+        "num_vehicles": num_vehicles,
+        "depot": 0,
+        "depot_start": 0,              
+        "time_windows": user_time_windows, 
+        "service_times": [0, 6, 6, 6, 3, 6, 6, 3, 5, 5, 6, 6, 4, 6, 6, 3, 3], 
+        "fuel_cost_per_km": fuel_cost_per_km,
+        "driver_cost_per_vehicle": driver_cost_per_vehicle
+    }
+
+    with st.spinner("Fetching matrix configurations and solving..."):
+        data = get_osrm_matrices(data)
+        result = solve_cvrptw(data)
+        
+    if result is None:
+        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity, reducing demands, or widening time windows.")
+        st.stop()
+
+    for route in result["route_results"]:
+        for stop in route["Schedule"]:
+            loc_name = stop["Location"]
+            idx = data["address_list"].index(loc_name)
+            stop["Opening_Minutes"] = data["time_windows"][idx][0]
+
+    st.session_state.optimization_result = compute_vehicle_metrics(result, data)
+    st.session_state.optimization_data = data
+
+# -------------------------------
+# Display results
+# -------------------------------
+if st.session_state.optimization_result:
+    result = st.session_state.optimization_result
+    data = st.session_state.optimization_data
+    routes = result["route_results"]
+
+    # --- DYNAMIC BASELINE CALCULATION ---
+    total_unoptimized_meters = 0
+    matrix = data["distance_matrix"]
+    for i in range(1, len(data["address_list"])):
+        total_unoptimized_meters += matrix[0][i] + matrix[i][0]
+    
+    baseline_distance = round(total_unoptimized_meters / 1000, 2)
+    optimized_distance = sum(r.get("Distance (km)", 0) for r in routes)
+    improvement = ((baseline_distance - optimized_distance) / baseline_distance) * 100 if baseline_distance > 0 else 0
+    
+    col1, col2, col3, col4, col5 = st.columns(5)
+    total_operational_cost = sum(r.get("Total Cost", 0) for r in routes)
+    total_packages = sum(r.get('Delivered Packages', 0) for r in routes)
+    total_capacity = sum(data['vehicle_capacities'])
+    
+    col1.metric("Baseline Distance", f"{baseline_distance:.2f} km")
+    col2.metric("Optimized Distance", f"{optimized_distance:.2f} km", f"{improvement:.2f}% improvement")
+    col3.metric("Total Dispatched", f"{total_packages} items")
+    col4.metric("Fleet Utilization", f"{(total_packages / total_capacity * 100) if total_capacity > 0 else 0:.1f}%")
+    col5.metric("Total Operational Cost", f"Rp {total_operational_cost:,.0f}")
+    
+    # --- Combined map ---
+    st.subheader("🗺️ Combined Route Map")
+    st_folium(create_enhanced_route_map(routes), width=1000, height=500)
+
+    # --- Vehicle summary table ---
+    st.subheader("🚛 Vehicle Summary Table")
+    
+    for r in routes:
+        for col_name in ["Fuel Cost", "Driver Cost", "Total Cost"]:
+            if col_name not in r:
+                r[col_name] = 0
+                
+    vehicle_summary_df = pd.DataFrame(routes)[[
+        "Vehicle",
+        "Distance (km)",
+        "Delivered Packages",
+        "Utilization (%)",
+        "Fuel Cost",
+        "Driver Cost",
+        "Total Cost",
+        "Lateness (min)"
+    ]]
+    
+    st.dataframe(vehicle_summary_df, use_container_width=True)
+
+    # --- Per-vehicle sections ---
+    for route in routes:
+        st.markdown(f"### Vehicle {route['Vehicle']}")
+        if route.get("Delivered Packages", 0) == 0 or not route.get("Schedule"):
+            st.info("Vehicle not needed for this configuration.")
+            continue
+
+        with st.expander(f"Vehicle {route['Vehicle']} Map", expanded=False):
+            st_folium(create_enhanced_route_map([route]), width=1000, height=450)
+
+        schedule_records = []
+        for s in route["Schedule"]:
+            open_min = s.get("Opening_Minutes", 0)
+            close_min = s.get("Deadline_Minutes", 1439)
+            
+            schedule_records.append({
+                "Location": s["Location"],
+                "Operational Window": f"{open_min//60:02d}:{open_min%60:02d} - {close_min//60:02d}:{close_min%60:02d}",
+                "Arrival Time": s["Time"],
+                "Demand": s["Demand"],
+                "Lateness (min)": s.get("Lateness_Minutes", 0),
+                "Latitude": s["Latitude"],
+                "Longitude": s["Longitude"]
+            })
+            
+        stop_df = pd.DataFrame(schedule_records)[["Location", "Operational Window", "Arrival Time", "Demand", "Lateness (min)", "Latitude", "Longitude"]]
+        
+        st.markdown(f"#### Stop-Level Delivery Table (Vehicle {route['Vehicle']})")
+        st.dataframe(stop_df, use_container_width=True)
+
+        csv_bytes = stop_df.to_csv(index=False).encode("utf-8")
+        st.download_button(
+            label=f"📥 Download CSV Vehicle {route['Vehicle']}", 
+            data=csv_bytes,
+            file_name=f"indrajaya_vehicle_{route['Vehicle']}_stops.csv", 
+            mime="text/csv"
+        )
