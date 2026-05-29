@@ -130,7 +130,7 @@ def compute_vehicle_metrics(result, data):
     return result
 
 # -------------------------------
-# Sidebar inputs
+# Sidebar inputs (Fleet parameters only)
 # -------------------------------
 st.sidebar.header("⚙️ Operational Scenarios")
 scenario = st.sidebar.selectbox("Select Scenario", ["Normal distribution day", "Peak distribution day", "Delayed departure"])
@@ -141,71 +141,53 @@ driver_cost_per_vehicle = st.sidebar.number_input("Driver Cost per Vehicle", 100
 num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2500)
 
-st.sidebar.header("📦 Base Demand Controls")
-demand_tangerang = st.sidebar.number_input("Tangerang", 0, 5000, 2000)
-demand_pejaten = st.sidebar.number_input("Pejaten", 0, 5000, 220)
-demand_central_park = st.sidebar.number_input("Central Park", 0, 5000, 195)
-demand_cikarang = st.sidebar.number_input("Cikarang", 0, 5000, 100)
-demand_karawaci = st.sidebar.number_input("Karawaci", 0, 5000, 80)
-demand_cibinong = st.sidebar.number_input("Cibinong", 0, 5000, 55)
-demand_cibubur = st.sidebar.number_input("Cibubur", 0, 5000, 80)
-demand_pimm2 = st.sidebar.number_input("Pondok Indah Mall 2", 0, 5000, 80)
-demand_casablanca = st.sidebar.number_input("Casablanca", 0, 5000, 95)
-demand_alam_sutera = st.sidebar.number_input("Alam Sutera", 0, 5000, 130)
-demand_depok = st.sidebar.number_input("Depok", 0, 5000, 100)
-demand_sudirman = st.sidebar.number_input("Sudirman", 0, 5000, 110)
-demand_plaza_indo = st.sidebar.number_input("Plaza Indonesia", 0, 5000, 200)
-demand_bintaro = st.sidebar.number_input("Bintaro", 0, 5000, 170)
-demand_bogor = st.sidebar.number_input("Bogor", 0, 5000, 1000)
-demand_ciomas = st.sidebar.number_input("Ciomas", 0, 5000, 400)
-
 # -------------------------------
-# Fixed Operational Time Windows (All set to 00:00 - 23:59)
+# Interactive Configuration Table (Demands & Time Windows)
 # -------------------------------
-locations_setup = [
-    {"name": "Depot", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Tangerang", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Pejaten", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Central Park", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Cikarang", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Karawaci", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Cibinong", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Cibubur", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Pondok Indah Mall 2", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Casablanca", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Alam Sutera", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Depok", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Sudirman", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Plaza Indonesia", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Bintaro", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Bogor", "tw": (0, 1439), "display": "00:00 - 23:59"},
-    {"name": "Ciomas", "tw": (0, 1439), "display": "00:00 - 23:59"}
-]
+st.subheader("📋 Location Demand & Time Window Parameters")
+st.markdown("Edit the cell numbers below directly to customize parameters dynamically before executing optimization.")
 
-# --- MAIN UI DISPLAY FOR TIME WINDOWS ---
-st.subheader("📋 Locked Operational Time Windows Reference")
-info_df = pd.DataFrame(locations_setup)[["name", "display"]].rename(columns={"name": "Location", "display": "Fixed Operating Hours"})
-st.dataframe(info_df, use_container_width=True)
+# Setup the default dataframe structure
+default_data = {
+    "Location": ["Depot", "Tangerang", "Pejaten", "Central Park", "Cikarang", "Karawaci", "Cibinong", "Cibubur", "Pondok Indah Mall 2", "Casablanca", "Alam Sutera", "Depok", "Sudirman", "Plaza Indonesia", "Bintaro", "Bogor", "Ciomas"],
+    "Demand": [0, 2000, 220, 195, 100, 80, 55, 80, 80, 95, 130, 100, 110, 200, 170, 1000, 400],
+    "Opening Hour (0-23)": [0, 8, 9, 10, 8, 10, 8, 9, 10, 10, 10, 8, 8, 10, 9, 8, 8],
+    "Closing Hour (0-23)": [23, 17, 21, 22, 17, 22, 17, 19, 22, 22, 22, 20, 17, 22, 20, 17, 17]
+}
+base_df = pd.DataFrame(default_data)
+
+# Render an editable spreadsheet interface using Streamlit Data Editor
+edited_df = st.data_editor(base_df, use_container_width=True, hide_index=True)
 
 # -------------------------------
 # Run solver
 # -------------------------------
 if st.button("🚀 Run Route Optimization"):
     multiplier = 1.0
-    if scenario == "Peak examination day":
+    if scenario == "Peak distribution day":
         multiplier = 1.25
 
-    raw_demands = [
-        0, demand_tangerang, demand_pejaten, demand_central_park, demand_cikarang,
-        demand_karawaci, demand_cibinong, demand_cibubur, demand_pimm2, demand_casablanca,
-        demand_alam_sutera, demand_depok, demand_sudirman, demand_plaza_indo, demand_bintaro,
-        demand_bogor, demand_ciomas
-    ]
-    final_demands = [math.ceil(d * multiplier) if idx != 0 else 0 for idx, d in enumerate(raw_demands)]
-    user_time_windows = [l["tw"] for l in locations_setup]
+    # Process edited inputs dynamically from the user-modified layout matrix
+    user_time_windows = []
+    final_demands = []
+    
+    for _, row in edited_df.iterrows():
+        # Prevent Depot load changes manually
+        loc_demand = 0 if row["Location"] == "Depot" else int(row["Demand"])
+        final_demands.append(math.ceil(loc_demand * multiplier))
+        
+        # Calculate minutes fields based on custom spreadsheet modifications
+        start_min = int(row["Opening Hour (0-23)"]) * 60
+        end_min = int(row["Closing Hour (0-23)"]) * 60 + 59  # include the whole hour loop
+        
+        # Clip edge limits to legal bounds safety parameters
+        start_min = max(0, min(1439, start_min))
+        end_min = max(0, min(1439, end_min))
+        
+        user_time_windows.append((start_min, end_min))
 
     data = {
-        "address_list": [l["name"] for l in locations_setup],
+        "address_list": edited_df["Location"].tolist(),
         "raw_coords": [
             (-6.60315, 106.76218),   # Depot
             (-6.3353364, 106.68034), # Tangerang
@@ -241,7 +223,7 @@ if st.button("🚀 Run Route Optimization"):
         result = solve_cvrptw(data)
         
     if result is None:
-        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity or reducing demands.")
+        st.error("No feasible solution found with current configurations. Try increasing Vehicle Capacity, reducing demands, or opening hours constraints.")
         st.stop()
 
     for route in result["route_results"]:
@@ -262,11 +244,9 @@ if st.session_state.optimization_result:
     routes = result["route_results"]
 
     # --- DYNAMIC BASELINE CALCULATION ---
-    # Sum up the distance from Depot (index 0) to each destination and back to depot
     total_unoptimized_meters = 0
     matrix = data["distance_matrix"]
     for i in range(1, len(data["address_list"])):
-        # Round trip: Depot -> Location i -> Depot
         total_unoptimized_meters += matrix[0][i] + matrix[i][0]
     
     baseline_distance = round(total_unoptimized_meters / 1000, 2)
