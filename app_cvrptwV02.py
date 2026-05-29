@@ -129,6 +129,16 @@ def compute_vehicle_metrics(result, data):
             
     return result
 
+# Helper to convert "HH:MM" string safely into total minutes from midnight
+def parse_time_to_minutes(time_str):
+    try:
+        parts = time_str.strip().split(":")
+        hours = int(parts[0])
+        minutes = int(parts[1]) if len(parts) > 1 else 0
+        return (hours * 60) + minutes
+    except:
+        return 0
+
 # -------------------------------
 # Sidebar inputs (Global parameters)
 # -------------------------------
@@ -142,34 +152,33 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2500)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls (Demand & Time Windows)
+# Dynamic Sidebar Location Controls (Demand & Time Windows down to Minutes)
 # -------------------------------
 st.sidebar.header("📦 Location Custom Configurations")
 
 locations_metadata = [
-    {"name": "Depot", "def_demand": 0, "def_open": 0, "def_close": 23},
-    {"name": "Tangerang", "def_demand": 2000, "def_open": 8, "def_close": 17},
-    {"name": "Pejaten", "def_demand": 220, "def_open": 9, "def_close": 21},
-    {"name": "Central Park", "def_demand": 195, "def_open": 10, "def_close": 22},
-    {"name": "Cikarang", "def_demand": 100, "def_open": 8, "def_close": 17},
-    {"name": "Karawaci", "def_demand": 80, "def_open": 10, "def_close": 22},
-    {"name": "Cibinong", "def_demand": 55, "def_open": 8, "def_close": 17},
-    {"name": "Cibubur", "def_demand": 80, "def_open": 9, "def_close": 19},
-    {"name": "Pondok Indah Mall 2", "def_demand": 80, "def_open": 10, "def_close": 22},
-    {"name": "Casablanca", "def_demand": 95, "def_open": 10, "def_close": 22},
-    {"name": "Alam Sutera", "def_demand": 130, "def_open": 10, "def_close": 22},
-    {"name": "Depok", "def_demand": 100, "def_open": 8, "def_close": 20},
-    {"name": "Sudirman", "def_demand": 110, "def_open": 8, "def_close": 17},
-    {"name": "Plaza Indonesia", "def_demand": 200, "def_open": 10, "def_close": 22},
-    {"name": "Bintaro", "def_demand": 170, "def_open": 9, "def_close": 20},
-    {"name": "Bogor", "def_demand": 1000, "def_open": 8, "def_close": 17},
-    {"name": "Ciomas", "def_demand": 400, "def_open": 8, "def_close": 17}
+    {"name": "Depot", "def_demand": 0, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Tangerang", "def_demand": 2000, "def_open": "08:00", "def_close": "17:00"},
+    {"name": "Pejaten", "def_demand": 220, "def_open": "09:00", "def_close": "21:00"},
+    {"name": "Central Park", "def_demand": 195, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Cikarang", "def_demand": 100, "def_open": "08:00", "def_close": "17:00"},
+    {"name": "Karawaci", "def_demand": 80, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Cibinong", "def_demand": 55, "def_open": "08:00", "def_close": "17:00"},
+    {"name": "Cibubur", "def_demand": 80, "def_open": "09:00", "def_close": "19:00"},
+    {"name": "Pondok Indah Mall 2", "def_demand": 80, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Casablanca", "def_demand": 95, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Alam Sutera", "def_demand": 130, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Depok", "def_demand": 100, "def_open": "08:00", "def_close": "20:00"},
+    {"name": "Sudirman", "def_demand": 110, "def_open": "08:00", "def_close": "17:00"},
+    {"name": "Plaza Indonesia", "def_demand": 200, "def_open": "10:00", "def_close": "22:00"},
+    {"name": "Bintaro", "def_demand": 170, "def_open": "09:00", "def_close": "20:00"},
+    {"name": "Bogor", "def_demand": 1000, "def_open": "08:00", "def_close": "17:00"},
+    {"name": "Ciomas", "def_demand": 400, "def_open": "08:00", "def_close": "17:00"}
 ]
 
 user_demands = []
 user_time_windows = []
 
-# Construct inputs inside sidebar components matching the design preference
 for loc in locations_metadata:
     with st.sidebar.expander(f"📍 {loc['name']}", expanded=False):
         if loc["name"] != "Depot":
@@ -179,17 +188,16 @@ for loc in locations_metadata:
             st.caption("Depot load defaults to 0.")
             
         col_start, col_end = st.columns(2)
-        open_hour = col_start.number_input("Open (0-23)", 0, 23, loc["def_open"], key=f"o_hr_{loc['name']}")
-        close_hour = col_end.number_input("Close (0-23)", 0, 23, loc["def_close"], key=f"c_hr_{loc['name']}")
+        open_time_str = col_start.text_input("Open (HH:MM)", loc["def_open"], key=f"o_tm_{loc['name']}")
+        close_time_str = col_end.text_input("Close (HH:MM)", loc["def_close"], key=f"c_tm_{loc['name']}")
         
-        # Enforce chronological validation safety limits
-        if open_hour > close_hour:
-            st.error("Open hour cannot be after close hour.")
-            close_hour = open_hour
+        start_minutes = parse_time_to_minutes(open_time_str)
+        end_minutes = parse_time_to_minutes(close_time_str)
+        
+        if start_minutes > end_minutes:
+            st.error("Opening time cannot be later than closing time.")
+            end_minutes = start_minutes
             
-        start_minutes = open_hour * 60
-        end_minutes = (close_hour * 60) + 59  # Capture the full duration of the final active hour hour loop
-        
         user_demands.append(demand_input)
         user_time_windows.append((start_minutes, end_minutes))
 
