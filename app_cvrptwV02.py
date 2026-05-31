@@ -18,11 +18,11 @@ if "optimization_metrics" not in st.session_state:
     st.session_state.optimization_metrics = None
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="CV Indra Jaya Shoes Distribution DSS", layout="wide", page_icon="👟")
+st.set_page_config(page_title="CV XX Shoes Distribution DSS", layout="wide", page_icon="👟")
 
 # --- HEADER ---
 st.title("Shoes Distribution Route Optimization System")
-st.markdown("**Case Study:** CV Indra Jaya CVRPTW Model (Updated Locations)")
+st.markdown("**Case Study:** CV XX CVRPTW Model (Updated Locations)")
 
 # -------------------------------
 # OSRM helpers
