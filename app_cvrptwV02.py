@@ -147,32 +147,32 @@ scenario = st.sidebar.selectbox("Select Scenario", ["Normal distribution day", "
 st.sidebar.header("🚚 Fleet Parameters")
 fuel_cost_per_km = st.sidebar.number_input("Fuel Cost per KM", 1000, 50000, 5000)
 driver_cost_per_vehicle = st.sidebar.number_input("Driver Cost per Vehicle", 10000, 500000, 50000)
-num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 5)
-vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2500)
+num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 3)
+vehicle_capacity = st.sidebar.number_input("Vehicle Capacity (Cartons/Pairs)", 50, 10000, 2000)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls (10:00 - 22:00 default for customers)
+# Dynamic Sidebar Location Controls (All set back to 00:00 - 23:59 default)
 # -------------------------------
 st.sidebar.header("📦 Location Custom Configurations")
 
 locations_metadata = [
     {"name": "Depot", "def_demand": 0, "def_open": "00:00", "def_close": "23:59"},
-    {"name": "Tangerang", "def_demand": 2000, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Pejaten", "def_demand": 220, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Central Park", "def_demand": 195, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Cikarang", "def_demand": 100, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Karawaci", "def_demand": 80, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Cibinong", "def_demand": 55, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Cibubur", "def_demand": 80, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Pondok Indah Mall 2", "def_demand": 80, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Casablanca", "def_demand": 95, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Alam Sutera", "def_demand": 130, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Depok", "def_demand": 100, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Sudirman", "def_demand": 110, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Plaza Indonesia", "def_demand": 200, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Bintaro", "def_demand": 170, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Bogor", "def_demand": 1000, "def_open": "10:00", "def_close": "22:00"},
-    {"name": "Ciomas", "def_demand": 400, "def_open": "10:00", "def_close": "22:00"}
+    {"name": "Tangerang", "def_demand": 2000, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Pejaten", "def_demand": 220, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Central Park", "def_demand": 195, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Cikarang", "def_demand": 100, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Karawaci", "def_demand": 80, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Cibinong", "def_demand": 55, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Cibubur", "def_demand": 80, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Pondok Indah Mall 2", "def_demand": 80, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Casablanca", "def_demand": 95, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Alam Sutera", "def_demand": 130, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Depok", "def_demand": 100, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Sudirman", "def_demand": 110, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Plaza Indonesia", "def_demand": 200, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Bintaro", "def_demand": 170, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Bogor", "def_demand": 1000, "def_open": "00:00", "def_close": "23:59"},
+    {"name": "Ciomas", "def_demand": 400, "def_open": "00:00", "def_close": "23:59"}
 ]
 
 user_demands = []
