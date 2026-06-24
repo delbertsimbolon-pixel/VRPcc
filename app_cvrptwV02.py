@@ -1,3 +1,4 @@
+import io
 import requests
 import math
 import pandas as pd
@@ -206,7 +207,7 @@ if input_method == "Manual Entry":
             })
 
 else:
-    # Generate Template Data
+    # Generate true Excel Template via a bytes stream
     template_data = {
         "Location Name": ["Depot Example", "Delivery Place 1"],
         "Location Type": ["depot", "delivery point"],
@@ -217,14 +218,19 @@ else:
         "Close Time": ["23:59", "20:00"]
     }
     template_df = pd.DataFrame(template_data)
-    template_csv = template_df.to_csv(index=False).encode("utf-8")
+    
+    # Write dataframe to memory stream as a genuine .xlsx file
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
+    excel_bytes = buffer.getvalue()
 
     st.sidebar.markdown("**Step 1: Download the Template**")
     st.sidebar.download_button(
-        label="📥 Download Excel/CSV Template",
-        data=template_csv,
-        file_name="route_optimization_template.csv",
-        mime="text/csv"
+        label="📥 Download Excel Template",
+        data=excel_bytes,
+        file_name="route_optimization_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
