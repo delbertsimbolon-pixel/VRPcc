@@ -209,18 +209,25 @@ if input_method == "Manual Entry":
 else:
     st.sidebar.markdown("**Step 1: Download the Template**")
     
-    try:
-        with open("route_optimization_template.csv", "rb") as file_attachment:
-            attachment_bytes = file_attachment.read()
-            
-        st.sidebar.download_button(
-            label="📥 Download Template Table",
-            data=attachment_bytes,
-            file_name="route_optimization_template.csv",
-            mime="text/csv"
-        )
-    except FileNotFoundError:
-        st.sidebar.error("Template attachment file missing on server root directory. Please verify 'route_optimization_template.csv' is placed alongside the python script.")
+    # Generate CSV formatting matrix dynamically on-the-fly 
+    template_data = {
+        "Location Name": ["Depot Example", "Delivery Place 1"],
+        "Location Type": ["depot", "delivery point"],
+        "Latitude": [-6.603150, -6.335336],
+        "Longitude": [106.762180, 106.680340],
+        "Demand": [0, 250],
+        "Open Time": ["00:00", "08:00"],
+        "Close Time": ["23:59", "20:00"]
+    }
+    template_df = pd.DataFrame(template_data)
+    template_csv = template_df.to_csv(index=False).encode("utf-8")
+        
+    st.sidebar.download_button(
+        label="📥 Download Template Table",
+        data=template_csv,
+        file_name="route_optimization_template.csv",
+        mime="text/csv"
+    )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
     uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["xlsx", "xls", "csv"])
@@ -228,7 +235,7 @@ else:
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file, sep=";")
+                df = pd.read_csv(uploaded_file)
             else:
                 df = pd.read_excel(uploaded_file)
                 
@@ -241,7 +248,7 @@ else:
                 st.sidebar.error(f"Missing columns in uploaded file: {missing_cols}")
             else:
                 for idx, row in df.iterrows():
-                    # Check and ignore empty formatting rows
+                    # Empty row protection validation check
                     if pd.isna(row["Location Name"]) or pd.isna(row["Location Type"]):
                         continue
                         
