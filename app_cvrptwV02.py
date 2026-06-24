@@ -135,7 +135,6 @@ def parse_time_to_minutes(time_str):
         if pd.isna(time_str) or not str(time_str).strip():
             return 0
         
-        # Format string check to remove potential floating point conversion issues from Excel
         time_str = str(time_str).strip()
         if "." in time_str and ":" not in time_str:
             time_str = time_str.split(".")[0]
@@ -207,28 +206,42 @@ if input_method == "Manual Entry":
             })
 
 else:
-    # Excel Template Reference Guide
-    st.sidebar.markdown("""
-    **Expected Excel Columns:**
-    * `Location Name` *(Text)*
-    * `Location Type` *('depot' or 'delivery point')*
-    * `Latitude` *(Decimal)*
-    * `Longitude` *(Decimal)*
-    * `Demand` *(Integer)*
-    * `Open Time` *(HH:MM e.g. 08:00)*
-    * `Close Time` *(HH:MM e.g. 17:00)*
-    """)
-    uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx", "xls"])
+    # Generate Template Data
+    template_data = {
+        "Location Name": ["Depot Example", "Delivery Place 1"],
+        "Location Type": ["depot", "delivery point"],
+        "Latitude": [-6.603150, -6.335336],
+        "Longitude": [106.762180, 106.680340],
+        "Demand": [0, 250],
+        "Open Time": ["00:00", "08:00"],
+        "Close Time": ["23:59", "20:00"]
+    }
+    template_df = pd.DataFrame(template_data)
+    template_csv = template_df.to_csv(index=False).encode("utf-8")
+
+    st.sidebar.markdown("**Step 1: Download the Template**")
+    st.sidebar.download_button(
+        label="📥 Download Excel/CSV Template",
+        data=template_csv,
+        file_name="route_optimization_template.csv",
+        mime="text/csv"
+    )
+
+    st.sidebar.markdown("**Step 2: Upload your File**")
+    uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["xlsx", "xls", "csv"])
     
     if uploaded_file is not None:
         try:
-            df = pd.read_excel(uploaded_file)
+            if uploaded_file.name.endswith(".csv"):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+                
             required_cols = ["Location Name", "Location Type", "Latitude", "Longitude", "Demand", "Open Time", "Close Time"]
-            
-            # Check for missing columns
             missing_cols = [c for c in required_cols if c not in df.columns]
+            
             if missing_cols:
-                st.sidebar.error(f"Missing columns in Excel file: {missing_cols}")
+                st.sidebar.error(f"Missing columns in uploaded file: {missing_cols}")
             else:
                 for idx, row in df.iterrows():
                     l_type = str(row["Location Type"]).strip().lower()
@@ -249,14 +262,14 @@ else:
                     })
                 st.sidebar.success(f"Successfully loaded {len(user_locations)} locations!")
         except Exception as e:
-            st.sidebar.error(f"Error parsing Excel file: {e}")
+            st.sidebar.error(f"Error parsing file: {e}")
 
 # -------------------------------
 # Run solver
 # -------------------------------
 if st.button("🚀 Run Route Optimization"):
     if not user_locations:
-        st.error("Validation Error: No location configurations found. Please setup manual forms or upload an Excel dataset.")
+        st.error("Validation Error: No location configurations found. Please setup manual forms or upload your template data.")
         st.stop()
         
     if not depot_indices:
