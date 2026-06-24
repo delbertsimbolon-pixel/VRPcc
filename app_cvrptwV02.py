@@ -17,14 +17,13 @@ if "optimization_data" not in st.session_state:
 
 # Track the number of locations dynamically
 if "num_locations" not in st.session_state:
-    st.session_state.num_locations = 2  # Starts with 2 locations as requested
+    st.session_state.num_locations = 2  # Starts with 2 locations
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Dynamic Distribution DSS", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Distribution Route Optimization System", layout="wide", page_icon="👟")
 
 # --- HEADER ---
-st.title("Dynamic Distribution Route Optimization System")
-st.markdown("Configure your operational scenarios, fleet parameters, and locations completely from scratch below.")
+st.title("Distribution Route Optimization System")
 
 # -------------------------------
 # OSRM helpers
@@ -157,7 +156,6 @@ vehicle_capacity = st.sidebar.number_input("Vehicle Capacity", 1, 50000, 100)
 # -------------------------------
 st.sidebar.header("📦 Location Configurations")
 
-# Button to dynamically increase the number of locations
 if st.sidebar.button("➕ Add Location"):
     st.session_state.num_locations += 1
 
@@ -167,23 +165,20 @@ depot_indices = []
 for i in range(st.session_state.num_locations):
     loc_id = i + 1
     with st.sidebar.expander(f"📍 Location {loc_id}", expanded=(i >= 2)):
-        # Select type: default is "Location for Delivery"
-        loc_type = st.selectbox("Location Type", ["Location for Delivery", "Depot"], index=0, key=f"type_{loc_id}")
+        # Configured options precisely to 'delivery point' or 'depot' (defaults to delivery point)
+        loc_type = st.selectbox("Location Type", ["delivery point", "depot"], index=0, key=f"type_{loc_id}")
         
-        # Lat / Lon manual configurations
         col_lat, col_lon = st.columns(2)
         lat = col_lat.number_input("Latitude", value=0.0, format="%.6f", key=f"lat_{loc_id}")
         lon = col_lon.number_input("Longitude", value=0.0, format="%.6f", key=f"lon_{loc_id}")
         
-        # Demand setup based on location type
-        if loc_type == "Location for Delivery":
+        if loc_type == "delivery point":
             demand_input = st.number_input("Demand", 0, 10000, 0, key=f"d_in_{loc_id}")
         else:
             demand_input = 0
             st.caption("Depot load defaults to 0.")
             depot_indices.append(i)
             
-        # Time windows configuration
         col_start, col_end = st.columns(2)
         open_time_str = col_start.text_input("Open (HH:MM)", "00:00", key=f"o_tm_{loc_id}")
         close_time_str = col_end.text_input("Close (HH:MM)", "23:59", key=f"c_tm_{loc_id}")
@@ -196,7 +191,7 @@ for i in range(st.session_state.num_locations):
             end_minutes = start_minutes
             
         user_locations.append({
-            "name": f"Location {loc_id}" if loc_type == "Location for Delivery" else f"Depot {loc_id}",
+            "name": f"Location {loc_id}" if loc_type == "delivery point" else f"Depot {loc_id}",
             "coords": (lat, lon),
             "demand": demand_input,
             "time_window": (start_minutes, end_minutes)
@@ -206,16 +201,11 @@ for i in range(st.session_state.num_locations):
 # Run solver
 # -------------------------------
 if st.button("🚀 Run Route Optimization"):
-    # Error checking before calling solver
     if not depot_indices:
-        st.error("Validation Error: Please select at least one 'Depot' type location.")
+        st.error("Validation Error: Please configure at least one location type as 'depot'.")
         st.stop()
-    if len(depot_indices) > 1:
-        st.warning("Multiple depots detected. The solver configuration defaults to using the first assigned depot as the starting base.")
 
-    # Re-index data structures so that the first selected depot is configured at Index 0 for the VRP solver engine
     primary_depot_idx = depot_indices[0]
-    
     sorted_locations = [user_locations[primary_depot_idx]] + [
         loc for idx, loc in enumerate(user_locations) if idx != primary_depot_idx
     ]
@@ -240,9 +230,8 @@ if st.button("🚀 Run Route Optimization"):
         "driver_cost_per_vehicle": driver_cost_per_vehicle
     }
 
-    # Validate coordinate placeholders
     if any(lat == 0.0 or lon == 0.0 for lat, lon in data["raw_coords"]):
-        st.error("Validation Error: Ensure all configured locations have valid map coordinates (cannot be 0.0/0.0).")
+        st.error("Validation Error: Ensure all mapped coordinates are valid (cannot be 0.0/0.0).")
         st.stop()
 
     with st.spinner("Fetching matrix configurations and solving..."):
@@ -250,7 +239,7 @@ if st.button("🚀 Run Route Optimization"):
             data = get_osrm_matrices(data)
             result = solve_cvrptw(data)
         except Exception as e:
-            st.error(f"Network error or invalid coordinate parameters mapping to OSRM: {e}")
+            st.error(f"Mapping error from OSRM engine: {e}")
             st.stop()
         
     if result is None:
@@ -274,7 +263,6 @@ if st.session_state.optimization_result:
     data = st.session_state.optimization_data
     routes = result["route_results"]
 
-    # --- DYNAMIC BASELINE CALCULATION ---
     total_unoptimized_meters = 0
     matrix = data["distance_matrix"]
     for i in range(1, len(data["address_list"])):
@@ -295,12 +283,10 @@ if st.session_state.optimization_result:
     col4.metric("Fleet Utilization", f"{(total_packages / total_capacity * 100) if total_capacity > 0 else 0:.1f}%")
     col5.metric("Total Operational Cost", f"Cost metric: {total_operational_cost:,}")
     
-    # --- Combined map ---
     st.subheader("🗺️ Combined Route Map")
     fallback_coord = data["raw_coords"][0]
     st_folium(create_enhanced_route_map(routes, fallback_coord[0], fallback_coord[1]), width=1000, height=500)
 
-    # --- Vehicle summary table ---
     st.subheader("🚛 Vehicle Summary Table")
     
     for r in routes:
@@ -321,7 +307,6 @@ if st.session_state.optimization_result:
     
     st.dataframe(vehicle_summary_df, use_container_width=True)
 
-    # --- Per-vehicle sections ---
     for route in routes:
         st.markdown(f"### Vehicle {route['Vehicle']}")
         if route.get("Delivered Packages", 0) == 0 or not route.get("Schedule"):
