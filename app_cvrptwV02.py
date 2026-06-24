@@ -165,7 +165,6 @@ depot_indices = []
 for i in range(st.session_state.num_locations):
     loc_id = i + 1
     with st.sidebar.expander(f"📍 Location {loc_id}", expanded=(i >= 2)):
-        # Configured options precisely to 'delivery point' or 'depot' (defaults to delivery point)
         loc_type = st.selectbox("Location Type", ["delivery point", "depot"], index=0, key=f"type_{loc_id}")
         
         col_lat, col_lon = st.columns(2)
@@ -343,3 +342,19 @@ if st.session_state.optimization_result:
             file_name=f"vehicle_{route['Vehicle']}_stops.csv", 
             mime="text/csv"
         )
+
+# -------------------------------
+# WATERMARK FOOTER
+# -------------------------------
+st.markdown("---")
+st.markdown(
+    """
+    <div style='text-align: center; color: #888888; font-size: 0.85rem; line-height: 1.6; padding: 10px 0;'>
+        Property of Elementary Industrial Laboratory of industrial engineering<br>
+        <span style='font-size: 0.8rem; color: #aaaaaa;'>
+            Made by: Daniel Delbert Ardielry, Zufar Fathan Hasdiono, Maulida Boru Butarbutar, Natanael Bayu Anggara
+        </span>
+    </div>
+    """, 
+    unsafe_html=True
+)
