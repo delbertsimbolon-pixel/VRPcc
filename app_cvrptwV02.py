@@ -209,7 +209,6 @@ if input_method == "Manual Entry":
 else:
     st.sidebar.markdown("**Step 1: Download the Template**")
     
-    # Generate CSV formatting matrix dynamically on-the-fly 
     template_data = {
         "Location Name": ["Depot Example", "Delivery Place 1"],
         "Location Type": ["depot", "delivery point"],
@@ -220,13 +219,17 @@ else:
         "Close Time": ["23:59", "20:00"]
     }
     template_df = pd.DataFrame(template_data)
-    template_csv = template_df.to_csv(index=False).encode("utf-8")
-        
+    
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
+    excel_bytes = buffer.getvalue()
+
     st.sidebar.download_button(
-        label="📥 Download Template Table",
-        data=template_csv,
-        file_name="route_optimization_template.csv",
-        mime="text/csv"
+        label="📥 Download Excel Template",
+        data=excel_bytes,
+        file_name="route_optimization_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
@@ -248,7 +251,7 @@ else:
                 st.sidebar.error(f"Missing columns in uploaded file: {missing_cols}")
             else:
                 for idx, row in df.iterrows():
-                    # Empty row protection validation check
+                    # --- ROW FILTER FIX: Ignore ghost/empty formatting rows ---
                     if pd.isna(row["Location Name"]) or pd.isna(row["Location Type"]):
                         continue
                         
@@ -270,7 +273,7 @@ else:
                     })
                 st.sidebar.success(f"Successfully loaded {len(user_locations)} locations!")
         except Exception as e:
-            st.sidebar.error(f"Error parsing file structure: {e}")
+            st.sidebar.error(f"Error parsing file: {e}")
 
 # -------------------------------
 # Run solver
