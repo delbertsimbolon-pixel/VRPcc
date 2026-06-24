@@ -160,7 +160,7 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 1)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity", 1, 50000, 100)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls (Manual vs Excel)
+# Dynamic Sidebar Location Controls (Manual vs Excel Layout)
 # -------------------------------
 st.sidebar.header("📦 Location Configurations")
 input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel Upload"])
@@ -207,31 +207,20 @@ if input_method == "Manual Entry":
             })
 
 else:
-    # Setup columns to match the user's template explicitly
-    template_data = {
-        "Location Name": ["Depot Example", "Delivery Place 1"],
-        "Location Type": ["depot", "delivery point"],
-        "Latitude": [-6.603150, -6.335336],
-        "Longitude": [106.762180, 106.680340],
-        "Demand": [0, 250],
-        "Open Time": ["00:00", "08:00"],
-        "Close Time": ["23:59", "20:00"]
-    }
-    template_df = pd.DataFrame(template_data)
-    
-    # Write dataframe to an in-memory stream as a native Excel .xlsx file
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
-    excel_bytes = buffer.getvalue()
-
     st.sidebar.markdown("**Step 1: Download the Template**")
-    st.sidebar.download_button(
-        label="📥 Download Excel Template",
-        data=excel_bytes,
-        file_name="route_optimization_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+    
+    try:
+        with open("route_optimization_template.csv", "rb") as file_attachment:
+            attachment_bytes = file_attachment.read()
+            
+        st.sidebar.download_button(
+            label="📥 Download Template Table",
+            data=attachment_bytes,
+            file_name="route_optimization_template.csv",
+            mime="text/csv"
+        )
+    except FileNotFoundError:
+        st.sidebar.error("Template attachment file missing on server root directory. Please verify 'route_optimization_template.csv' is placed alongside the python script.")
 
     st.sidebar.markdown("**Step 2: Upload your File**")
     uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["xlsx", "xls", "csv"])
@@ -239,11 +228,10 @@ else:
     if uploaded_file is not None:
         try:
             if uploaded_file.name.endswith(".csv"):
-                df = pd.read_csv(uploaded_file)
+                df = pd.read_csv(uploaded_file, sep=";")
             else:
                 df = pd.read_excel(uploaded_file)
                 
-            # Automatically clean structural spacing from columns
             df.columns = df.columns.str.strip()
             
             required_cols = ["Location Name", "Location Type", "Latitude", "Longitude", "Demand", "Open Time", "Close Time"]
@@ -253,12 +241,16 @@ else:
                 st.sidebar.error(f"Missing columns in uploaded file: {missing_cols}")
             else:
                 for idx, row in df.iterrows():
+                    # Check and ignore empty formatting rows
+                    if pd.isna(row["Location Name"]) or pd.isna(row["Location Type"]):
+                        continue
+                        
                     l_type = str(row["Location Type"]).strip().lower()
                     start_min = parse_time_to_minutes(row["Open Time"])
                     end_min = parse_time_to_minutes(row["Close Time"])
                     
                     if l_type == "depot":
-                        depot_indices.append(idx)
+                        depot_indices.append(len(user_locations))
                         dem = 0
                     else:
                         dem = int(row["Demand"]) if not pd.isna(row["Demand"]) else 0
@@ -271,7 +263,7 @@ else:
                     })
                 st.sidebar.success(f"Successfully loaded {len(user_locations)} locations!")
         except Exception as e:
-            st.sidebar.error(f"Error parsing file: {e}")
+            st.sidebar.error(f"Error parsing file structure: {e}")
 
 # -------------------------------
 # Run solver
