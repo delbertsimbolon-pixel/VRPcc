@@ -1,3 +1,4 @@
+import io
 import requests
 import math
 import pandas as pd
@@ -159,10 +160,10 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 1)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity", 1, 50000, 100)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls (Manual vs Excel/CSV)
+# Dynamic Sidebar Location Controls (Manual vs Excel)
 # -------------------------------
 st.sidebar.header("📦 Location Configurations")
-input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel / CSV Upload"])
+input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel Upload"])
 
 user_locations = []
 depot_indices = []
@@ -206,7 +207,7 @@ if input_method == "Manual Entry":
             })
 
 else:
-    # Use native safe CSV mapping format to sidestep missing system dependencies
+    # Setup columns to match the user's template explicitly
     template_data = {
         "Location Name": ["Depot Example", "Delivery Place 1"],
         "Location Type": ["depot", "delivery point"],
@@ -217,18 +218,23 @@ else:
         "Close Time": ["23:59", "20:00"]
     }
     template_df = pd.DataFrame(template_data)
-    template_csv = template_df.to_csv(index=False).encode("utf-8")
+    
+    # Write dataframe to an in-memory stream as a native Excel .xlsx file
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
+    excel_bytes = buffer.getvalue()
 
     st.sidebar.markdown("**Step 1: Download the Template**")
     st.sidebar.download_button(
-        label="📥 Download Template Table",
-        data=template_csv,
-        file_name="route_optimization_template.csv",
-        mime="text/csv"
+        label="📥 Download Excel Template",
+        data=excel_bytes,
+        file_name="route_optimization_template.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
-    uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["csv", "xlsx", "xls"])
+    uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["xlsx", "xls", "csv"])
     
     if uploaded_file is not None:
         try:
@@ -237,6 +243,9 @@ else:
             else:
                 df = pd.read_excel(uploaded_file)
                 
+            # Automatically clean structural spacing from columns
+            df.columns = df.columns.str.strip()
+            
             required_cols = ["Location Name", "Location Type", "Latitude", "Longitude", "Demand", "Open Time", "Close Time"]
             missing_cols = [c for c in required_cols if c not in df.columns]
             
