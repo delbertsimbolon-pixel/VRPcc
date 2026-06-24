@@ -1,4 +1,3 @@
-import io
 import requests
 import math
 import pandas as pd
@@ -160,10 +159,10 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 1)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity", 1, 50000, 100)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls (Manual vs Excel)
+# Dynamic Sidebar Location Controls (Manual vs Excel/CSV)
 # -------------------------------
 st.sidebar.header("📦 Location Configurations")
-input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel Upload"])
+input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel / CSV Upload"])
 
 user_locations = []
 depot_indices = []
@@ -207,7 +206,7 @@ if input_method == "Manual Entry":
             })
 
 else:
-    # Generate true Excel Template via a bytes stream
+    # Use native safe CSV mapping format to sidestep missing system dependencies
     template_data = {
         "Location Name": ["Depot Example", "Delivery Place 1"],
         "Location Type": ["depot", "delivery point"],
@@ -218,23 +217,18 @@ else:
         "Close Time": ["23:59", "20:00"]
     }
     template_df = pd.DataFrame(template_data)
-    
-    # Write dataframe to memory stream as a genuine .xlsx file
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
-    excel_bytes = buffer.getvalue()
+    template_csv = template_df.to_csv(index=False).encode("utf-8")
 
     st.sidebar.markdown("**Step 1: Download the Template**")
     st.sidebar.download_button(
-        label="📥 Download Excel Template",
-        data=excel_bytes,
-        file_name="route_optimization_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        label="📥 Download Template Table",
+        data=template_csv,
+        file_name="route_optimization_template.csv",
+        mime="text/csv"
     )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
-    uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["xlsx", "xls", "csv"])
+    uploaded_file = st.sidebar.file_uploader("Upload Completed File", type=["csv", "xlsx", "xls"])
     
     if uploaded_file is not None:
         try:
