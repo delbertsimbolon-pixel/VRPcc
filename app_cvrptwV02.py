@@ -15,7 +15,7 @@ if "optimization_result" not in st.session_state:
 if "optimization_data" not in st.session_state:
     st.session_state.optimization_data = None
 
-# Track the number of locations dynamically
+# Track the number of locations dynamically for manual entry
 if "num_locations" not in st.session_state:
     st.session_state.num_locations = 2  # Starts with 2 locations
 
@@ -132,7 +132,15 @@ def compute_vehicle_metrics(result, data):
 
 def parse_time_to_minutes(time_str):
     try:
-        parts = time_str.strip().split(":")
+        if pd.isna(time_str) or not str(time_str).strip():
+            return 0
+        
+        # Format string check to remove potential floating point conversion issues from Excel
+        time_str = str(time_str).strip()
+        if "." in time_str and ":" not in time_str:
+            time_str = time_str.split(".")[0]
+            
+        parts = time_str.split(":")
         hours = int(parts[0])
         minutes = int(parts[1]) if len(parts) > 1 else 0
         return (hours * 60) + minutes
@@ -152,54 +160,105 @@ num_vehicles = st.sidebar.number_input("Number of Vehicles", 1, 15, 1)
 vehicle_capacity = st.sidebar.number_input("Vehicle Capacity", 1, 50000, 100)
 
 # -------------------------------
-# Dynamic Sidebar Location Controls
+# Dynamic Sidebar Location Controls (Manual vs Excel)
 # -------------------------------
 st.sidebar.header("📦 Location Configurations")
-
-if st.sidebar.button("➕ Add Location"):
-    st.session_state.num_locations += 1
+input_method = st.sidebar.radio("Data Entry Method", ["Manual Entry", "Excel Upload"])
 
 user_locations = []
 depot_indices = []
 
-for i in range(st.session_state.num_locations):
-    loc_id = i + 1
-    with st.sidebar.expander(f"📍 Location {loc_id}", expanded=(i >= 2)):
-        loc_type = st.selectbox("Location Type", ["delivery point", "depot"], index=0, key=f"type_{loc_id}")
-        
-        col_lat, col_lon = st.columns(2)
-        lat = col_lat.number_input("Latitude", value=0.0, format="%.6f", key=f"lat_{loc_id}")
-        lon = col_lon.number_input("Longitude", value=0.0, format="%.6f", key=f"lon_{loc_id}")
-        
-        if loc_type == "delivery point":
-            demand_input = st.number_input("Demand", 0, 10000, 0, key=f"d_in_{loc_id}")
-        else:
-            demand_input = 0
-            st.caption("Depot load defaults to 0.")
-            depot_indices.append(i)
+if input_method == "Manual Entry":
+    if st.sidebar.button("➕ Add Location"):
+        st.session_state.num_locations += 1
+
+    for i in range(st.session_state.num_locations):
+        loc_id = i + 1
+        with st.sidebar.expander(f"📍 Location {loc_id}", expanded=(i >= 2)):
+            loc_type = st.selectbox("Location Type", ["delivery point", "depot"], index=0, key=f"type_{loc_id}")
             
-        col_start, col_end = st.columns(2)
-        open_time_str = col_start.text_input("Open (HH:MM)", "00:00", key=f"o_tm_{loc_id}")
-        close_time_str = col_end.text_input("Close (HH:MM)", "23:59", key=f"c_tm_{loc_id}")
-        
-        start_minutes = parse_time_to_minutes(open_time_str)
-        end_minutes = parse_time_to_minutes(close_time_str)
-        
-        if start_minutes > end_minutes:
-            st.error("Opening time cannot be later than closing time.")
-            end_minutes = start_minutes
+            col_lat, col_lon = st.columns(2)
+            lat = col_lat.number_input("Latitude", value=0.0, format="%.6f", key=f"lat_{loc_id}")
+            lon = col_lon.number_input("Longitude", value=0.0, format="%.6f", key=f"lon_{loc_id}")
             
-        user_locations.append({
-            "name": f"Location {loc_id}" if loc_type == "delivery point" else f"Depot {loc_id}",
-            "coords": (lat, lon),
-            "demand": demand_input,
-            "time_window": (start_minutes, end_minutes)
-        })
+            if loc_type == "delivery point":
+                demand_input = st.number_input("Demand", 0, 10000, 0, key=f"d_in_{loc_id}")
+            else:
+                demand_input = 0
+                st.caption("Depot load defaults to 0.")
+                depot_indices.append(i)
+                
+            col_start, col_end = st.columns(2)
+            open_time_str = col_start.text_input("Open (HH:MM)", "00:00", key=f"o_tm_{loc_id}")
+            close_time_str = col_end.text_input("Close (HH:MM)", "23:59", key=f"c_tm_{loc_id}")
+            
+            start_minutes = parse_time_to_minutes(open_time_str)
+            end_minutes = parse_time_to_minutes(close_time_str)
+            
+            if start_minutes > end_minutes:
+                st.error("Opening time cannot be later than closing time.")
+                end_minutes = start_minutes
+                
+            user_locations.append({
+                "name": f"Location {loc_id}" if loc_type == "delivery point" else f"Depot {loc_id}",
+                "coords": (lat, lon),
+                "demand": demand_input,
+                "time_window": (start_minutes, end_minutes)
+            })
+
+else:
+    # Excel Template Reference Guide
+    st.sidebar.markdown("""
+    **Expected Excel Columns:**
+    * `Location Name` *(Text)*
+    * `Location Type` *('depot' or 'delivery point')*
+    * `Latitude` *(Decimal)*
+    * `Longitude` *(Decimal)*
+    * `Demand` *(Integer)*
+    * `Open Time` *(HH:MM e.g. 08:00)*
+    * `Close Time` *(HH:MM e.g. 17:00)*
+    """)
+    uploaded_file = st.sidebar.file_uploader("Upload Excel File", type=["xlsx", "xls"])
+    
+    if uploaded_file is not None:
+        try:
+            df = pd.read_excel(uploaded_file)
+            required_cols = ["Location Name", "Location Type", "Latitude", "Longitude", "Demand", "Open Time", "Close Time"]
+            
+            # Check for missing columns
+            missing_cols = [c for c in required_cols if c not in df.columns]
+            if missing_cols:
+                st.sidebar.error(f"Missing columns in Excel file: {missing_cols}")
+            else:
+                for idx, row in df.iterrows():
+                    l_type = str(row["Location Type"]).strip().lower()
+                    start_min = parse_time_to_minutes(row["Open Time"])
+                    end_min = parse_time_to_minutes(row["Close Time"])
+                    
+                    if l_type == "depot":
+                        depot_indices.append(idx)
+                        dem = 0
+                    else:
+                        dem = int(row["Demand"]) if not pd.isna(row["Demand"]) else 0
+
+                    user_locations.append({
+                        "name": str(row["Location Name"]),
+                        "coords": (float(row["Latitude"]), float(row["Longitude"])),
+                        "demand": dem,
+                        "time_window": (start_min, end_min)
+                    })
+                st.sidebar.success(f"Successfully loaded {len(user_locations)} locations!")
+        except Exception as e:
+            st.sidebar.error(f"Error parsing Excel file: {e}")
 
 # -------------------------------
 # Run solver
 # -------------------------------
 if st.button("🚀 Run Route Optimization"):
+    if not user_locations:
+        st.error("Validation Error: No location configurations found. Please setup manual forms or upload an Excel dataset.")
+        st.stop()
+        
     if not depot_indices:
         st.error("Validation Error: Please configure at least one location type as 'depot'.")
         st.stop()
