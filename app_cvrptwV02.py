@@ -21,7 +21,7 @@ if "num_locations" not in st.session_state:
     st.session_state.num_locations = 2  # Starts with 2 locations
 
 # --- PAGE CONFIG ---
-st.set_page_config(page_title="Distribution Route Optimization System", layout="wide", page_icon="👟")
+st.set_page_config(page_title="Distribution Route Optimization System", layout="wide", page_icon="🚚")
 
 # --- HEADER ---
 st.title("Distribution Route Optimization System")
@@ -150,9 +150,6 @@ def parse_time_to_minutes(time_str):
 # -------------------------------
 # Sidebar inputs (Global parameters)
 # -------------------------------
-st.sidebar.header("⚙️ Operational Scenarios")
-scenario = st.sidebar.selectbox("Select Scenario", ["Normal distribution day", "Peak distribution day", "Delayed departure"])
-
 st.sidebar.header("🚚 Fleet Parameters")
 fuel_cost_per_km = st.sidebar.number_input("Fuel Cost per KM", 0, 50000, 0)
 driver_cost_per_vehicle = st.sidebar.number_input("Driver Cost per Vehicle", 0, 500000, 0)
@@ -209,6 +206,7 @@ if input_method == "Manual Entry":
 else:
     st.sidebar.markdown("**Step 1: Download the Template**")
     
+    # Generate CSV formatting matrix dynamically on-the-fly 
     template_data = {
         "Location Name": ["Depot Example", "Delivery Place 1"],
         "Location Type": ["depot", "delivery point"],
@@ -219,17 +217,13 @@ else:
         "Close Time": ["23:59", "20:00"]
     }
     template_df = pd.DataFrame(template_data)
-    
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        template_df.to_excel(writer, index=False, sheet_name="Locations Schema")
-    excel_bytes = buffer.getvalue()
-
+    template_csv = template_df.to_csv(index=False).encode("utf-8")
+        
     st.sidebar.download_button(
-        label="📥 Download Excel Template",
-        data=excel_bytes,
-        file_name="route_optimization_template.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        label="📥 Download Template Table",
+        data=template_csv,
+        file_name="route_optimization_template.csv",
+        mime="text/csv"
     )
 
     st.sidebar.markdown("**Step 2: Upload your File**")
@@ -251,7 +245,7 @@ else:
                 st.sidebar.error(f"Missing columns in uploaded file: {missing_cols}")
             else:
                 for idx, row in df.iterrows():
-                    # --- ROW FILTER FIX: Ignore ghost/empty formatting rows ---
+                    # Empty row protection validation check
                     if pd.isna(row["Location Name"]) or pd.isna(row["Location Type"]):
                         continue
                         
@@ -273,7 +267,7 @@ else:
                     })
                 st.sidebar.success(f"Successfully loaded {len(user_locations)} locations!")
         except Exception as e:
-            st.sidebar.error(f"Error parsing file: {e}")
+            st.sidebar.error(f"Error parsing file structure: {e}")
 
 # -------------------------------
 # Run solver
@@ -292,11 +286,7 @@ if st.button("🚀 Run Route Optimization"):
         loc for idx, loc in enumerate(user_locations) if idx != primary_depot_idx
     ]
 
-    multiplier = 1.0
-    if scenario == "Peak distribution day":
-        multiplier = 1.25
-
-    final_demands = [math.ceil(loc["demand"] * multiplier) if idx != 0 else 0 for idx, loc in enumerate(sorted_locations)]
+    final_demands = [math.ceil(loc["demand"]) if idx != 0 else 0 for idx, loc in enumerate(sorted_locations)]
 
     data = {
         "address_list": [loc["name"] for loc in sorted_locations],
